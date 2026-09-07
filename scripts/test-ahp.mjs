@@ -61,6 +61,18 @@ if (checkResult.triadViolations.length > 0 && checkResult.cr > 0.10) {
   console.error('❌ Test 2 failed to detect violation!');
 }
 
+// Test 2-B: Incomplete answers should NOT trigger false alarms!
+const oneAnswer = { 'c1_c2': 9 };
+const checkOne = checkRealtimeConsistency(items, oneAnswer);
+console.log('\n=== Test 2-B: Incomplete Answers (1 pair) ===');
+console.log('1 pair answered -> CR:', checkOne.cr, 'Status:', checkOne.status, 'IsAcceptable:', checkOne.isAcceptable);
+if (checkOne.cr === 0 && checkOne.isAcceptable) {
+  console.log('✅ Correct! 1 pair answered has CR=0 (no false alarm)!');
+} else {
+  console.error('❌ Failed! 1 pair answered generated false alarm!');
+}
+
+
 // Test 3: Group Aggregation
 const respondent1 = [
   [1, 3, 5],

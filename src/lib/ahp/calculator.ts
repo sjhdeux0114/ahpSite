@@ -172,6 +172,146 @@ export function calculateAHP(matrix: number[][]): AHPResult {
 }
 
 /**
+ * Harker's Method for Incomplete Pairwise Comparison Matrices
+ * (Harker, 1987, "Alternative Modes of Questions in the Analytic Hierarchy Process")
+ * Correctly evaluates consistency when not all pairwise comparisons have been answered yet,
+ * without arbitrarily filling missing pairs with 1.0.
+ */
+export function calculateIncompleteAHP(
+  itemIds: string[],
+  answers: PairwiseAnswerMap
+): AHPResult {
+  const n = itemIds.length;
+  if (n <= 1) {
+    return {
+      weights: [1.0],
+      lambdaMax: 1.0,
+      ci: 0.0,
+      cr: 0.0,
+      isConsistent: true,
+      matrix: [[1.0]],
+    };
+  }
+
+  // Count answered pairs and missing pairs per item
+  const missingCount = new Array(n).fill(0);
+  const harkerMatrix: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
+  const standardMatrix: number[][] = Array.from({ length: n }, () => Array(n).fill(1.0));
+
+  let totalAnswered = 0;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const idA = itemIds[i];
+      const idB = itemIds[j];
+      const key = `${idA}_${idB}`;
+      const revKey = `${idB}_${idA}`;
+
+      let answered = false;
+      let val = 1.0;
+
+      if (answers[key] !== undefined) {
+        const raw = answers[key];
+        val = raw >= 1 ? raw : 1 / Math.abs(raw);
+        answered = true;
+      } else if (answers[revKey] !== undefined) {
+        const raw = answers[revKey];
+        val = raw >= 1 ? 1 / raw : Math.abs(raw);
+        answered = true;
+      }
+
+      if (answered) {
+        totalAnswered++;
+        harkerMatrix[i][j] = val;
+        harkerMatrix[j][i] = 1 / val;
+        standardMatrix[i][j] = val;
+        standardMatrix[j][i] = 1 / val;
+      } else {
+        missingCount[i]++;
+        missingCount[j]++;
+        harkerMatrix[i][j] = 0;
+        harkerMatrix[j][i] = 0;
+      }
+    }
+  }
+
+  // If fewer than 3 pairs answered, no closed cycle (triad) can possibly exist!
+  // Mathematically, CR is 0.0 because there is no redundancy to be inconsistent.
+  if (totalAnswered < 3) {
+    // For weights, derive approximate weights from whatever is answered
+    const geomMeans = standardMatrix.map(row => {
+      const logSum = row.reduce((sum, val) => sum + Math.log(val), 0);
+      return Math.exp(logSum / n);
+    });
+    const sumGeom = geomMeans.reduce((acc, val) => acc + val, 0);
+    const weights = geomMeans.map(val => val / (sumGeom || 1));
+
+    return {
+      weights,
+      lambdaMax: Number(n.toFixed(4)),
+      ci: 0.0,
+      cr: 0.0,
+      isConsistent: true,
+      matrix: standardMatrix,
+    };
+  }
+
+  // Set Harker diagonal: A_ii = 1 + d_i (d_i = number of missing comparisons for item i)
+  for (let i = 0; i < n; i++) {
+    harkerMatrix[i][i] = 1 + missingCount[i];
+  }
+
+  // Compute principal eigenvector of Harker matrix using Power Iteration
+  let weights = new Array(n).fill(1 / n);
+  const MAX_ITER = 100;
+  const EPSILON = 1e-7;
+
+  for (let iter = 0; iter < MAX_ITER; iter++) {
+    const nextWeights = new Array(n).fill(0);
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        nextWeights[i] += harkerMatrix[i][j] * weights[j];
+      }
+    }
+
+    const sumNext = nextWeights.reduce((acc, val) => acc + val, 0);
+    const normalized = nextWeights.map(val => val / (sumNext || 1));
+
+    let diff = 0;
+    for (let i = 0; i < n; i++) {
+      diff += Math.abs(normalized[i] - weights[i]);
+    }
+
+    weights = normalized;
+    if (diff < EPSILON) break;
+  }
+
+  // LambdaMax for Harker matrix
+  let lambdaSum = 0;
+  for (let i = 0; i < n; i++) {
+    let aw_i = 0;
+    for (let j = 0; j < n; j++) {
+      aw_i += harkerMatrix[i][j] * weights[j];
+    }
+    lambdaSum += aw_i / (weights[i] || 1e-6);
+  }
+  const lambdaMax = Math.max(n, lambdaSum / n);
+
+  const ci = Math.max(0, (lambdaMax - n) / (n - 1));
+  const ri = getRandomIndex(n);
+  const cr = ri > 0 ? ci / ri : 0.0;
+
+  return {
+    weights,
+    lambdaMax: Number(lambdaMax.toFixed(4)),
+    ci: Number(ci.toFixed(4)),
+    cr: Number(cr.toFixed(4)),
+    isConsistent: cr <= 0.10,
+    matrix: standardMatrix,
+  };
+}
+
+
+/**
  * Group AHP: Aggregates multiple individual pairwise comparison matrices using
  * the Geometric Mean Method (AIJ - Aggregation of Individual Judgements).
  */

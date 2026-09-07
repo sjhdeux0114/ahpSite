@@ -369,6 +369,47 @@ export default function SurveyAnalysisPage() {
           </div>
         )}
 
+        {/* Demographics Breakdown Summary if exists */}
+        {survey.demographics && survey.demographics.length > 0 && responses.length > 0 && (
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm mb-8">
+            <h3 className="text-base font-bold text-slate-900 mb-3">
+              응답자 인적사항 (프로필) 분포 현황
+            </h3>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {survey.demographics.map((demo: any) => {
+                const countMap: Record<string, number> = {};
+                responses.forEach((r: any) => {
+                  const val = r.demographics?.[demo.id];
+                  if (val) countMap[val] = (countMap[val] || 0) + 1;
+                });
+
+                return (
+                  <div key={demo.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-xs font-bold text-slate-700 block mb-2">{demo.title}</span>
+                    <div className="space-y-1">
+                      {Object.keys(countMap).length === 0 ? (
+                        <span className="text-xs text-slate-400">응답 데이터 없음</span>
+                      ) : (
+                        Object.entries(countMap).map(([opt, count]) => {
+                          const pct = Math.round((count / responses.length) * 100);
+                          return (
+                            <div key={opt} className="flex items-center justify-between text-xs text-slate-600">
+                              <span className="truncate max-w-[140px] font-medium">{opt}</span>
+                              <span className="font-bold text-indigo-700">
+                                {count}명 ({pct}%)
+                              </span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Individual Respondents Table */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between mb-4">
@@ -392,6 +433,11 @@ export default function SurveyAnalysisPage() {
                     <th className="py-2.5 px-3 font-semibold">#</th>
                     <th className="py-2.5 px-3 font-semibold">응답자</th>
                     <th className="py-2.5 px-3 font-semibold">이메일</th>
+                    {survey.demographics?.map((demo: any) => (
+                      <th key={demo.id} className="py-2.5 px-3 font-semibold text-slate-700">
+                        {demo.title}
+                      </th>
+                    ))}
                     <th className="py-2.5 px-3 font-semibold">응답 일시</th>
                     <th className="py-2.5 px-3 font-semibold text-right">기준 CR</th>
                     <th className="py-2.5 px-3 font-semibold text-center">신뢰도 통과 여부</th>
@@ -403,6 +449,11 @@ export default function SurveyAnalysisPage() {
                       <td className="py-2.5 px-3 text-slate-400 font-mono">{idx + 1}</td>
                       <td className="py-2.5 px-3 font-bold text-slate-800">{resp.name}</td>
                       <td className="py-2.5 px-3 text-slate-500">{resp.email || '-'}</td>
+                      {survey.demographics?.map((demo: any) => (
+                        <td key={demo.id} className="py-2.5 px-3 text-slate-700 font-medium">
+                          {resp.demographics?.[demo.id] || '-'}
+                        </td>
+                      ))}
                       <td className="py-2.5 px-3 text-slate-500 text-xs">
                         {new Date(resp.createdAt).toLocaleString()}
                       </td>
@@ -427,6 +478,7 @@ export default function SurveyAnalysisPage() {
             </div>
           )}
         </div>
+
       </main>
     </>
   );

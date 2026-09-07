@@ -1,4 +1,4 @@
-import { buildMatrix, calculateAHP, PairwiseAnswerMap } from './calculator';
+import { buildMatrix, calculateAHP, calculateIncompleteAHP, PairwiseAnswerMap } from './calculator';
 
 export interface ItemInfo {
   id: string;
@@ -100,20 +100,33 @@ export function checkRealtimeConsistency(
     }
   }
 
-  // 2. Compute full or partial matrix CR
-  const matrix = buildMatrix(items.map(it => it.id), answers);
-  const ahpResult = calculateAHP(matrix);
-  const cr = ahpResult.cr;
+  // 2. Compute full or partial matrix CR using Harker's Method for incomplete matrices
+  let ahpResult: ReturnType<typeof calculateAHP>;
+  let cr = 0.0;
+
+  if (isComplete) {
+    const matrix = buildMatrix(items.map(it => it.id), answers);
+    ahpResult = calculateAHP(matrix);
+    cr = ahpResult.cr;
+  } else {
+    ahpResult = calculateIncompleteAHP(items.map(it => it.id), answers);
+    cr = ahpResult.cr;
+  }
 
   // Determine status
   let status: ConsistencyStatus = 'EXCELLENT';
-  if (cr > 0.15) {
+  if (answeredCount < 3) {
+    // Fewer than 3 pairs answered: no cycles exist, perfect consistency by definition
+    status = 'EXCELLENT';
+    cr = 0.0;
+  } else if (cr > 0.15) {
     status = 'CRITICAL';
   } else if (cr > 0.10) {
     status = 'CAUTION';
   } else if (cr > 0.05) {
     status = 'GOOD';
   }
+
 
   // 3. Find worst inconsistent comparison (if CR > 0.10 and multiple answered)
   let worstInconsistency: WorstInconsistency | null = null;
@@ -128,7 +141,7 @@ export function checkRealtimeConsistency(
         const answered = answers[`${idA}_${idB}`] !== undefined || answers[`${idB}_${idA}`] !== undefined;
         if (!answered) continue;
 
-        const aij = matrix[i][j];
+        const aij = ahpResult.matrix[i][j];
         const theoreticalRatio = ahpResult.weights[i] / (ahpResult.weights[j] || 1e-6);
         // Logarithmic discrepancy metric
         const discrepancy = Math.abs(Math.log(aij) - Math.log(theoreticalRatio));

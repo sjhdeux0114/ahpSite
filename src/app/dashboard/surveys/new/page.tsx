@@ -21,6 +21,14 @@ interface ItemEntry {
   description: string;
 }
 
+export interface DemographicQuestion {
+  id: string;
+  title: string;
+  type: 'select' | 'text';
+  options: string[];
+  required: boolean;
+}
+
 export default function NewSurveyPage() {
   const router = useRouter();
   const [title, setTitle] = useState('');
@@ -42,8 +50,34 @@ export default function NewSurveyPage() {
     { id: 'alt_3', name: '대안 C', description: '오픈소스 기반 맞춤형 솔루션' },
   ]);
 
+  // Demographics
+  const [demographics, setDemographics] = useState<DemographicQuestion[]>([
+    {
+      id: 'demo_gender',
+      title: '성별',
+      type: 'select',
+      options: ['남성', '여성', '기타'],
+      required: true,
+    },
+    {
+      id: 'demo_age',
+      title: '연령대',
+      type: 'select',
+      options: ['20대 이하', '30대', '40대', '50대', '60대 이상'],
+      required: true,
+    },
+    {
+      id: 'demo_exp',
+      title: '관련 분야 경력',
+      type: 'select',
+      options: ['1년 미만', '1~3년', '3~5년', '5~10년', '10년 이상'],
+      required: true,
+    },
+  ]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
 
   // Helpers for Criteria
   const addCriterion = () => {
@@ -83,6 +117,29 @@ export default function NewSurveyPage() {
       return;
     }
     setAlternatives(alternatives.filter((_, i) => i !== index));
+  };
+
+  // Helpers for Demographics
+  const addDemographic = (preset?: Partial<DemographicQuestion>) => {
+    const nextId = `demo_${Date.now()}`;
+    const newDemo: DemographicQuestion = {
+      id: nextId,
+      title: preset?.title || '새 질문',
+      type: preset?.type || 'select',
+      options: preset?.options || ['선택지 1', '선택지 2'],
+      required: preset?.required ?? true,
+    };
+    setDemographics([...demographics, newDemo]);
+  };
+
+  const updateDemographic = (index: number, field: keyof DemographicQuestion, val: any) => {
+    const updated = [...demographics];
+    (updated[index] as any)[field] = val;
+    setDemographics(updated);
+  };
+
+  const removeDemographic = (index: number) => {
+    setDemographics(demographics.filter((_, i) => i !== index));
   };
 
   // Question calculations
@@ -125,10 +182,18 @@ export default function NewSurveyPage() {
             ? alternatives.map(a => ({ id: a.id, name: a.name.trim(), description: a.description.trim() }))
             : [],
           hasAlternatives,
+          demographics: demographics.map(d => ({
+            id: d.id,
+            title: d.title.trim(),
+            type: d.type,
+            options: d.type === 'select' ? d.options.map(o => o.trim()).filter(Boolean) : [],
+            required: d.required,
+          })),
         }),
       });
 
       const data = await res.json();
+
       if (!res.ok) {
         setError(data.error || '설문 생성에 실패했습니다.');
         setLoading(false);
@@ -331,8 +396,148 @@ export default function NewSurveyPage() {
             )}
           </div>
 
-          {/* Section 4: Summary & Question Count Preview */}
+          {/* Section 4: Demographics Questions */}
+          <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/90 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">4</span>
+                응답자 인적사항 (프로필) 문항 설정
+                <span className="text-xs font-normal text-slate-500">({demographics.length}개 항목)</span>
+              </h2>
+              <button
+                type="button"
+                onClick={() => addDemographic({ title: '', type: 'select', options: ['항목 1', '항목 2'], required: true })}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                직접 질문 추가
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 mb-4">
+              AHP 설문 결과 분석 시 응답자 특성별(연령, 성별, 경력, 직급 등) 교차 분석에 활용되는 문항입니다. 아래 프리셋 버튼으로 원클릭 추가하거나 자유롭게 커스텀 질문을 등록하세요.
+            </p>
+
+            {/* Presets Button Row */}
+            <div className="flex flex-wrap items-center gap-2 mb-5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-xs font-bold text-slate-600 mr-1">빠른 추가 프리셋:</span>
+              <button
+                type="button"
+                onClick={() => addDemographic({ title: '성별', type: 'select', options: ['남성', '여성', '기타'], required: true })}
+                className="text-xs bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 font-medium px-2.5 py-1 rounded-lg transition hover:text-indigo-600"
+              >
+                + 성별
+              </button>
+              <button
+                type="button"
+                onClick={() => addDemographic({ title: '연령대', type: 'select', options: ['20대 이하', '30대', '40대', '50대', '60대 이상'], required: true })}
+                className="text-xs bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 font-medium px-2.5 py-1 rounded-lg transition hover:text-indigo-600"
+              >
+                + 연령대
+              </button>
+              <button
+                type="button"
+                onClick={() => addDemographic({ title: '관련 분야 경력', type: 'select', options: ['1년 미만', '1~3년', '3~5년', '5~10년', '10년 이상'], required: true })}
+                className="text-xs bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 font-medium px-2.5 py-1 rounded-lg transition hover:text-indigo-600"
+              >
+                + 관련 경력
+              </button>
+              <button
+                type="button"
+                onClick={() => addDemographic({ title: '직급 / 직책', type: 'select', options: ['실무자/사원', '대리/과장', '차장/부장', '임원/대표'], required: true })}
+                className="text-xs bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 font-medium px-2.5 py-1 rounded-lg transition hover:text-indigo-600"
+              >
+                + 직급/직책
+              </button>
+              <button
+                type="button"
+                onClick={() => addDemographic({ title: '최종 학력', type: 'select', options: ['학사 재학/졸업', '석사 재학/졸업', '박사 재학/졸업', '기타'], required: false })}
+                className="text-xs bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 font-medium px-2.5 py-1 rounded-lg transition hover:text-indigo-600"
+              >
+                + 최종 학력
+              </button>
+              <button
+                type="button"
+                onClick={() => addDemographic({ title: '소속 부서 / 기관', type: 'text', options: [], required: false })}
+                className="text-xs bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 font-medium px-2.5 py-1 rounded-lg transition hover:text-indigo-600"
+              >
+                + 소속 부서 (주관식)
+              </button>
+            </div>
+
+            {/* Demographics List */}
+            {demographics.length === 0 ? (
+              <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                등록된 인적사항 질문이 없습니다. 상단 프리셋 버튼이나 질문 추가 버튼을 눌러보세요.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {demographics.map((demo, idx) => (
+                  <div key={demo.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500 w-5">D{idx + 1}</span>
+                      <input
+                        type="text"
+                        value={demo.title}
+                        onChange={e => updateDemographic(idx, 'title', e.target.value)}
+                        placeholder="질문 명칭 (예: 연령대, 관련 분야 경력)"
+                        className="flex-1 px-3 py-1.5 bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold text-slate-800"
+                      />
+                      <select
+                        value={demo.type}
+                        onChange={e => updateDemographic(idx, 'type', e.target.value as any)}
+                        className="px-2.5 py-1.5 bg-white rounded-lg border border-slate-300 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="select">객관식 (선택형)</option>
+                        <option value="text">주관식 (단답형)</option>
+                      </select>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer px-2">
+                        <input
+                          type="checkbox"
+                          checked={demo.required}
+                          onChange={e => updateDemographic(idx, 'required', e.target.checked)}
+                          className="rounded text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>필수</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removeDemographic(idx)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {demo.type === 'select' && (
+                      <div className="pl-7">
+                        <input
+                          type="text"
+                          value={demo.options.join(', ')}
+                          onChange={e =>
+                            updateDemographic(
+                              idx,
+                              'options',
+                              e.target.value.split(',').map(s => s.trim())
+                            )
+                          }
+                          placeholder="선택지 항목들을 쉼표(,)로 구분하여 입력하세요 (예: 20대, 30대, 40대, 50대 이상)"
+                          className="w-full px-3 py-1.5 bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs text-slate-600"
+                        />
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          쉼표(,)로 각 선택지를 구분합니다. (현재 {demo.options.filter(Boolean).length}개 옵션)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Section 5: Summary & Question Count Preview */}
           <div className="bg-indigo-50/70 p-6 rounded-2xl border border-indigo-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+
             <div>
               <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-1.5 mb-1">
                 <Sparkles className="w-4 h-4 text-indigo-600" />

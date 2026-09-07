@@ -28,6 +28,7 @@ model Survey {
   criteria        String     @default("[]")
   alternatives    String     @default("[]")
   hasAlternatives Boolean    @default(true)
+  demographics    String     @default("[]") // JSON of custom demographic questions
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
   responses       Response[]
@@ -39,8 +40,10 @@ model Response {
   survey          Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   respondentName  String?
   respondentEmail String?
+  demographics    String   @default("{}") // JSON of demographic answers
   answers         String   // JSON string of answers
   crResults       String   // JSON string of CR values per comparison matrix
   isValid         Boolean  @default(true)
   createdAt       DateTime @default(now())
 }
+

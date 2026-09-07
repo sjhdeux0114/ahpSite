@@ -17,6 +17,7 @@ export async function GET(
       criteria: true,
       alternatives: true,
       hasAlternatives: true,
+      demographics: true,
       createdAt: true,
     },
   });
@@ -30,9 +31,11 @@ export async function GET(
       ...survey,
       criteria: JSON.parse(survey.criteria || '[]'),
       alternatives: JSON.parse(survey.alternatives || '[]'),
+      demographics: JSON.parse(survey.demographics || '[]'),
     },
   });
 }
+
 
 export async function POST(
   request: Request,
@@ -55,7 +58,7 @@ export async function POST(
 
   try {
     const body = await request.json();
-    const { respondentName, respondentEmail, answers } = body;
+    const { respondentName, respondentEmail, answers, demographics } = body;
 
     const criteria: Array<{ id: string; name: string }> = JSON.parse(survey.criteria || '[]');
     const alternatives: Array<{ id: string; name: string }> = JSON.parse(survey.alternatives || '[]');
@@ -92,11 +95,13 @@ export async function POST(
         surveyId: survey.id,
         respondentName: respondentName?.trim() || null,
         respondentEmail: respondentEmail?.trim() || null,
+        demographics: JSON.stringify(demographics || {}),
         answers: JSON.stringify(answers),
         crResults: JSON.stringify(crResults),
         isValid: isAllConsistent,
       },
     });
+
 
     return NextResponse.json({
       success: true,

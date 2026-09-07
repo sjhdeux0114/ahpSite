@@ -34,14 +34,17 @@ export async function GET(
 
   const criteria: Array<{ id: string; name: string; description?: string }> = JSON.parse(survey.criteria || '[]');
   const alternatives: Array<{ id: string; name: string; description?: string }> = JSON.parse(survey.alternatives || '[]');
+  const demographics: Array<{ id: string; title: string }> = JSON.parse(survey.demographics || '[]');
   const criteriaIds = criteria.map(c => c.id);
   const altIds = alternatives.map(a => a.id);
 
   const parsedResponses = survey.responses.map(r => {
     let answers: any = {};
     let crResults: any = {};
+    let demographicAnswers: any = {};
     try { answers = JSON.parse(r.answers); } catch {}
     try { crResults = JSON.parse(r.crResults); } catch {}
+    try { demographicAnswers = JSON.parse(r.demographics || '{}'); } catch {}
 
     return {
       id: r.id,
@@ -50,9 +53,11 @@ export async function GET(
       createdAt: r.createdAt,
       isValid: r.isValid,
       criteriaCR: crResults.criteriaCR ?? 0,
+      demographics: demographicAnswers,
       answers,
     };
   });
+
 
   // Calculate group AHP (using all responses or valid ones)
   const validResponses = parsedResponses.filter(r => r.isValid);
@@ -93,7 +98,9 @@ export async function GET(
     status: survey.status,
     criteria,
     alternatives,
+    demographics,
     hasAlternatives: survey.hasAlternatives,
+
     totalResponses: parsedResponses.length,
     validResponses: validResponses.length,
     criteriaAHP,

@@ -8,6 +8,7 @@ export interface SurveyExportData {
   status: string;
   criteria: Array<{ id: string; name: string; description?: string }>;
   alternatives: Array<{ id: string; name: string; description?: string }>;
+  demographics?: Array<{ id: string; title: string }>;
   hasAlternatives: boolean;
   totalResponses: number;
   validResponses: number;
@@ -24,9 +25,11 @@ export interface SurveyExportData {
     createdAt: Date;
     isValid: boolean;
     criteriaCR: number;
+    demographics?: Record<string, any>;
     answers: Record<string, any>;
   }>;
 }
+
 
 export async function generateExcelReport(data: SurveyExportData): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
@@ -183,10 +186,12 @@ export async function generateExcelReport(data: SurveyExportData): Promise<Buffe
   const wsResp = workbook.addWorksheet('응답자별 데이터');
   wsResp.views = [{ showGridLines: true }];
 
+  const demoList = data.demographics || [];
   const respHeader = wsResp.addRow([
     '응답 번호',
     '응답자 이름',
     '이메일',
+    ...demoList.map(d => d.title),
     '응답 일시',
     '기준 CR',
     '일관성 통과여부',
@@ -197,28 +202,35 @@ export async function generateExcelReport(data: SurveyExportData): Promise<Buffe
     cell.alignment = { horizontal: 'center' };
   });
 
+  const crColIndex = 4 + demoList.length;
+  const validColIndex = 5 + demoList.length;
+
   data.individualResponses.forEach((r, idx) => {
+    const demoValues = demoList.map(d => r.demographics?.[d.id] || '-');
     const row = wsResp.addRow([
       idx + 1,
       r.name || '익명',
       r.email || '-',
+      ...demoValues,
       new Date(r.createdAt).toLocaleString(),
       r.criteriaCR.toFixed(4),
       r.isValid ? '적합 (통과)' : '부적합 (CR > 0.1)',
     ]);
     row.eachCell(cell => { cell.border = borderStyle; });
-    row.getCell(5).numFmt = '0.0000';
-    row.getCell(6).font = { color: { argb: r.isValid ? 'FF15803D' : 'FFDC2626' } };
+    row.getCell(crColIndex).numFmt = '0.0000';
+    row.getCell(validColIndex).font = { color: { argb: r.isValid ? 'FF15803D' : 'FFDC2626' } };
   });
 
   wsResp.columns = [
     { width: 12 },
     { width: 20 },
     { width: 25 },
+    ...demoList.map(() => ({ width: 18 })),
     { width: 24 },
     { width: 15 },
     { width: 20 },
   ];
+
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);

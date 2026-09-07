@@ -36,6 +36,7 @@ export async function GET(
 
   const criteria: Array<{ id: string; name: string; description?: string }> = JSON.parse(survey.criteria || '[]');
   const alternatives: Array<{ id: string; name: string; description?: string }> = JSON.parse(survey.alternatives || '[]');
+  const demographics: Array<any> = JSON.parse(survey.demographics || '[]');
   const criteriaIds = criteria.map(c => c.id);
   const altIds = alternatives.map(a => a.id);
 
@@ -43,8 +44,10 @@ export async function GET(
   const parsedResponses = survey.responses.map(r => {
     let answers: any = {};
     let crResults: any = {};
+    let demographicAnswers: any = {};
     try { answers = JSON.parse(r.answers); } catch {}
     try { crResults = JSON.parse(r.crResults); } catch {}
+    try { demographicAnswers = JSON.parse(r.demographics || '{}'); } catch {}
 
     return {
       id: r.id,
@@ -54,9 +57,11 @@ export async function GET(
       isValid: r.isValid,
       criteriaCR: crResults.criteriaCR ?? 0,
       alternativesCR: crResults.alternativesCR ?? {},
+      demographics: demographicAnswers,
       answers,
     };
   });
+
 
   // Filter if requested
   const targetResponses = onlyValid
@@ -118,7 +123,9 @@ export async function GET(
       ...survey,
       criteria,
       alternatives,
+      demographics,
     },
+
     analysis: {
       totalResponses: parsedResponses.length,
       analyzedResponses: targetResponses.length,

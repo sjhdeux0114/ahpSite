@@ -29,10 +29,12 @@ export async function GET(
       ...survey,
       criteria: JSON.parse(survey.criteria || '[]'),
       alternatives: JSON.parse(survey.alternatives || '[]'),
+      demographics: JSON.parse(survey.demographics || '[]'),
       responseCount: survey._count.responses,
     },
   });
 }
+
 
 export async function PATCH(
   request: Request,

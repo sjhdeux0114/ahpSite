@@ -136,7 +136,54 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
     ];
   }
 
+  // Demographics Table (if exists)
+  let demoTableRows: TableRow[] = [];
+  if (data.demographics && data.demographics.length > 0 && data.individualResponses.length > 0) {
+    demoTableRows = [
+      new TableRow({
+        tableHeader: true,
+        children: [
+          new TableCell({
+            width: { size: 3000, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, fill: tableHeaderBg },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '항목명', bold: true })] })],
+          }),
+          new TableCell({
+            width: { size: 5000, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, fill: tableHeaderBg },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '응답 분포 현황', bold: true })] })],
+          }),
+          new TableCell({
+            width: { size: 2000, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, fill: tableHeaderBg },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '유효 응답', bold: true })] })],
+          }),
+        ],
+      }),
+      ...data.demographics.map(demo => {
+        const countMap: Record<string, number> = {};
+        data.individualResponses.forEach(r => {
+          const val = r.demographics?.[demo.id];
+          if (val) countMap[val] = (countMap[val] || 0) + 1;
+        });
+        const summaryStr =
+          Object.entries(countMap)
+            .map(([k, v]) => `${k}: ${v}명 (${Math.round((v / data.individualResponses.length) * 100)}%)`)
+            .join(', ') || '-';
+
+        return new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: demo.title, bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ text: summaryStr })] }),
+            new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, text: `${data.individualResponses.length}명` })] }),
+          ],
+        });
+      }),
+    ];
+  }
+
   const doc = new Document({
+
     sections: [
       {
         properties: {},
@@ -239,13 +286,38 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
                 }),
               ]
             : []),
+          // Demographics Section (if exists)
+          ...(demoTableRows.length > 0
+            ? [
+                new Paragraph({
+                  heading: HeadingLevel.HEADING_1,
+                  spacing: { before: 400, after: 200 },
+                  children: [new TextRun({ text: '4. 응답자 인적사항(프로필) 특성 분석', bold: true, color: primaryColor })],
+                }),
+                new Table({
+                  rows: demoTableRows,
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                }),
+                new Paragraph({
+                  spacing: { before: 150, after: 300 },
+                  children: [
+                    new TextRun({
+                      text: `* 본 조사의 응답자 프로필 분포 현황입니다.`,
+                      size: 18,
+                      color: '64748B',
+                    }),
+                  ],
+                }),
+              ]
+            : []),
 
-          // Section 4: Summary & Conclusion
+          // Section 5: Summary & Conclusion
           new Paragraph({
             heading: HeadingLevel.HEADING_1,
             spacing: { before: 400, after: 200 },
-            children: [new TextRun({ text: '4. 결론 및 종합 제언', bold: true, color: primaryColor })],
+            children: [new TextRun({ text: '5. 결론 및 종합 제언', bold: true, color: primaryColor })],
           }),
+
           new Paragraph({
             spacing: { after: 200 },
             children: [

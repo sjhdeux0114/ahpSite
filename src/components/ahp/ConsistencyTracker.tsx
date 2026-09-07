@@ -2,16 +2,30 @@
 
 import React from 'react';
 import { RealtimeConsistencyCheck } from '@/lib/ahp/consistency';
-import { ShieldCheck, AlertTriangle, AlertOctagon, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, AlertOctagon, CheckCircle2, Check } from 'lucide-react';
 
-interface ConsistencyTrackerProps {
+export interface TrackerTab {
+  id: string; // 'criteria' or criterion id
+  title: string; // '1단계: 평가 기준' or '2단계: [가격] 관점 대안 비교'
+  shortTitle: string; // '1단계: 기준' or '2-1: 가격'
   check: RealtimeConsistencyCheck;
-  title: string;
 }
 
-export default function ConsistencyTracker({ check, title }: ConsistencyTrackerProps) {
-  const { cr, status, triadViolations, totalPairs, answeredPairs, isAcceptable, message } = check;
+interface ConsistencyTrackerProps {
+  tabs: TrackerTab[];
+  activeTabId: string;
+  onSelectTab: (tabId: string) => void;
+}
 
+export default function ConsistencyTracker({
+  tabs,
+  activeTabId,
+  onSelectTab,
+}: ConsistencyTrackerProps) {
+  const currentTab = tabs.find(t => t.id === activeTabId) || tabs[0];
+  if (!currentTab) return null;
+
+  const { cr, status, triadViolations, totalPairs, answeredPairs, isAcceptable } = currentTab.check;
   const progressPercent = totalPairs > 0 ? Math.round((answeredPairs / totalPairs) * 100) : 0;
 
   // Visual style config
@@ -24,7 +38,16 @@ export default function ConsistencyTracker({ check, title }: ConsistencyTrackerP
     icon: CheckCircle2,
   };
 
-  if (status === 'GOOD') {
+  if (answeredPairs < 3 && totalPairs > 0) {
+    statusBadge = {
+      bg: 'bg-slate-50',
+      border: 'border-slate-200',
+      text: 'text-slate-600',
+      label: '응답 진행 중',
+      barColor: 'bg-indigo-500',
+      icon: ShieldCheck,
+    };
+  } else if (status === 'GOOD') {
     statusBadge = {
       bg: 'bg-blue-50',
       border: 'border-blue-200',
@@ -56,62 +79,109 @@ export default function ConsistencyTracker({ check, title }: ConsistencyTrackerP
   const StatusIcon = statusBadge.icon;
 
   return (
-    <div className="sticky top-16 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm px-4 py-3 sm:px-6 transition-all">
-      <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Left: Section name & Progress */}
-        <div className="flex items-center gap-3">
+    <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm px-4 py-2.5 sm:px-6 transition-all">
+      <div className="max-w-4xl mx-auto space-y-2">
+        {/* Step Selector Tabs in Sticky Bar */}
+        {tabs.length > 1 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+            <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1 uppercase">
+              실시간 일관성:
+            </span>
+            {tabs.map(tab => {
+              const isActive = tab.id === activeTabId;
+              const isTabComplete = tab.check.answeredPairs === tab.check.totalPairs && tab.check.totalPairs > 0;
+              const tabCR = tab.check.cr;
+              const isTabGood = tab.check.isAcceptable && tab.check.triadViolations.length === 0;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => onSelectTab(tab.id)}
+                  className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition border flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{tab.shortTitle}</span>
+                  {tab.check.answeredPairs > 0 && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                        isActive
+                          ? 'bg-indigo-700 text-white'
+                          : isTabGood
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      CR {tabCR.toFixed(2)}
+                    </span>
+                  )}
+                  {isTabComplete && (
+                    <Check className={`w-3 h-3 ${isActive ? 'text-indigo-200' : 'text-emerald-600'}`} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Detailed Status Bar for currently selected matrix */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-0.5">
+          {/* Section title & progress */}
           <div>
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-              {title}
+            <span className="text-xs font-bold text-slate-900 block truncate max-w-sm sm:max-w-md">
+              {currentTab.title}
             </span>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-sm font-bold text-slate-900">
+              <span className="text-xs text-slate-500 font-medium">
                 {answeredPairs} / {totalPairs} 문항 완료
               </span>
               <span className="text-xs text-slate-400">({progressPercent}%)</span>
             </div>
           </div>
-        </div>
 
-        {/* Right: Real-time CR Score & Badge */}
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <div className="flex items-center gap-1.5 justify-end">
-              <span className="text-xs text-slate-500 font-medium">일관성 비율(CR):</span>
-              <span
-                className={`text-base font-extrabold ${
-                  isAcceptable ? 'text-slate-900' : 'text-rose-600'
-                }`}
-              >
-                {cr.toFixed(3)}
-              </span>
+          {/* CR Score & Badge */}
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <div className="flex items-center gap-1.5 justify-end">
+                <span className="text-xs text-slate-500 font-medium">일관성 비율(CR):</span>
+                <span
+                  className={`text-base font-extrabold ${
+                    isAcceptable ? 'text-slate-900' : 'text-rose-600'
+                  }`}
+                >
+                  {answeredPairs >= 3 ? cr.toFixed(3) : '-'}
+                </span>
+              </div>
+              <div className="w-28 sm:w-32 bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden ml-auto">
+                <div
+                  className={`h-full transition-all duration-500 ${statusBadge.barColor}`}
+                  style={{ width: `${Math.min(100, Math.max(10, (cr / 0.2) * 100))}%` }}
+                />
+              </div>
             </div>
-            <div className="w-32 bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden ml-auto">
-              <div
-                className={`h-full transition-all duration-500 ${statusBadge.barColor}`}
-                style={{ width: `${Math.min(100, Math.max(10, (cr / 0.2) * 100))}%` }}
-              />
+
+            <div
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold ${statusBadge.bg} ${statusBadge.border} ${statusBadge.text}`}
+            >
+              <StatusIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>{statusBadge.label}</span>
             </div>
           </div>
-
-          <div
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold ${statusBadge.bg} ${statusBadge.border} ${statusBadge.text}`}
-          >
-            <StatusIcon className="w-3.5 h-3.5 shrink-0" />
-            <span>{statusBadge.label}</span>
-          </div>
         </div>
+
+        {/* Triad Violation Alert Banner */}
+        {triadViolations.length > 0 && (
+          <div className="p-2 rounded-xl bg-rose-100/90 border border-rose-300 text-rose-900 text-xs flex items-start gap-2 animate-pulse">
+            <AlertOctagon className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div className="flex-1 leading-snug">
+              <strong>논리적 순환 모순 감지:</strong> {triadViolations[0].message}
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Triad or Critical Inconsistency Notification Banner */}
-      {triadViolations.length > 0 && (
-        <div className="max-w-4xl mx-auto mt-2.5 p-2.5 rounded-xl bg-rose-100/90 border border-rose-300 text-rose-900 text-xs flex items-start gap-2 animate-pulse">
-          <AlertOctagon className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <strong>논리적 순환 모순 발견:</strong> {triadViolations[0].message}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

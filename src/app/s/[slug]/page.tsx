@@ -28,6 +28,13 @@ interface SurveyData {
   criteria: PairItemData[];
   alternatives: PairItemData[];
   hasAlternatives: boolean;
+  demographics?: Array<{
+    id: string;
+    title: string;
+    type: 'select' | 'text';
+    options: string[];
+    required: boolean;
+  }>;
 }
 
 export default function PublicSurveyPage() {
@@ -42,6 +49,9 @@ export default function PublicSurveyPage() {
   const [respondentName, setRespondentName] = useState('');
   const [respondentEmail, setRespondentEmail] = useState('');
 
+  // Demographic answers: { [questionId]: "선택값 또는 입력값" }
+  const [demographicAnswers, setDemographicAnswers] = useState<Record<string, string>>({});
+
   // Answers state
   // criteriaAnswers: { "crit1_crit2": 3, ... }
   const [criteriaAnswers, setCriteriaAnswers] = useState<Record<string, number>>({});
@@ -51,6 +61,9 @@ export default function PublicSurveyPage() {
 
   // Active alternative criterion tab (for alternative comparisons)
   const [activeAltCritIndex, setActiveAltCritIndex] = useState<number>(0);
+
+  // Active tracker tab: 'criteria' or criterion.id
+  const [activeTrackerTabId, setActiveTrackerTabId] = useState<string>('criteria');
 
   // Modal alert state
   const [modalOpen, setModalOpen] = useState(false);
@@ -85,19 +98,76 @@ export default function PublicSurveyPage() {
     return checkRealtimeConsistency(survey.criteria, criteriaAnswers);
   }, [survey, criteriaAnswers]);
 
+  // Real-time consistency for all alternative matrices
+  const altConsistencies = useMemo(() => {
+    if (!survey || !survey.hasAlternatives || !survey.alternatives || survey.alternatives.length < 2) {
+      return {};
+    }
+    const map: Record<string, RealtimeConsistencyCheck> = {};
+    survey.criteria.forEach(crit => {
+      map[crit.id] = checkRealtimeConsistency(survey.alternatives, altAnswers[crit.id] || {});
+    });
+    return map;
+  }, [survey, altAnswers]);
+
   // Real-time consistency for the currently active alternative matrix
   const currentAltCrit = survey?.criteria?.[activeAltCritIndex];
   const currentAltAnswers = currentAltCrit ? (altAnswers[currentAltCrit.id] || {}) : {};
+  const currentAltConsistency = currentAltCrit ? altConsistencies[currentAltCrit.id] : null;
 
-  const currentAltConsistency = useMemo(() => {
-    if (!survey || !survey.hasAlternatives || !survey.alternatives || survey.alternatives.length < 2) {
-      return null;
+  // Multi-step Tracker Tabs (Step 1 Criteria + Step 2 Alternatives for each Criterion)
+  const trackerTabs = useMemo(() => {
+    if (!survey || !criteriaConsistency) return [];
+    const list = [
+      {
+        id: 'criteria',
+        title: '1단계: 평가 기준 간 쌍대비교',
+        shortTitle: '1단계: 기준',
+        check: criteriaConsistency,
+      },
+    ];
+
+    if (survey.hasAlternatives && survey.alternatives.length > 1) {
+      survey.criteria.forEach((crit, idx) => {
+        const check = altConsistencies[crit.id] || {
+          totalPairs: (survey.alternatives.length * (survey.alternatives.length - 1)) / 2,
+          answeredPairs: 0,
+          isComplete: false,
+          cr: 0,
+          status: 'EXCELLENT' as const,
+          isAcceptable: true,
+          triadViolations: [],
+          worstInconsistency: null,
+          message: '',
+        };
+        list.push({
+          id: crit.id,
+          title: `2단계: [${crit.name}] 관점 대안 간 쌍대비교`,
+          shortTitle: `2-${idx + 1}: ${crit.name}`,
+          check,
+        });
+      });
     }
-    return checkRealtimeConsistency(survey.alternatives, currentAltAnswers);
-  }, [survey, currentAltAnswers]);
+
+    return list;
+  }, [survey, criteriaConsistency, altConsistencies]);
+
+  const handleSelectTrackerTab = (tabId: string) => {
+    setActiveTrackerTabId(tabId);
+    if (tabId === 'criteria') {
+      document.getElementById('section-criteria')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      const idx = survey?.criteria?.findIndex(c => c.id === tabId);
+      if (idx !== undefined && idx >= 0) {
+        setActiveAltCritIndex(idx);
+      }
+      document.getElementById('section-alternatives')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   // Handle Criteria answer change
   const handleCriteriaChange = (pairKey: string, val: number) => {
+    setActiveTrackerTabId('criteria');
     const updated = { ...criteriaAnswers, [pairKey]: val };
     setCriteriaAnswers(updated);
 
@@ -115,6 +185,7 @@ export default function PublicSurveyPage() {
 
   // Handle Alternative answer change
   const handleAltChange = (critId: string, pairKey: string, val: number) => {
+    setActiveTrackerTabId(critId);
     const critMap = { ...(altAnswers[critId] || {}), [pairKey]: val };
     const updated = { ...altAnswers, [critId]: critMap };
     setAltAnswers(updated);
@@ -205,6 +276,16 @@ export default function PublicSurveyPage() {
       }
     }
 
+    // Check completion of required demographics
+    if (survey?.demographics && survey.demographics.length > 0) {
+      for (const demo of survey.demographics) {
+        if (demo.required && !demographicAnswers[demo.id]) {
+          setSubmitError(`인적사항 문항 중 '${demo.title}' 항목에 응답해 주세요.`);
+          return;
+        }
+      }
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch(`/api/public/survey/${slug}`, {
@@ -213,12 +294,14 @@ export default function PublicSurveyPage() {
         body: JSON.stringify({
           respondentName: respondentName.trim() || undefined,
           respondentEmail: respondentEmail.trim() || undefined,
+          demographics: demographicAnswers,
           answers: {
             criteria: criteriaAnswers,
             alternatives: altAnswers,
           },
         }),
       });
+
 
       const data = await res.json();
       if (!res.ok) {
@@ -334,11 +417,12 @@ export default function PublicSurveyPage() {
         </div>
       </header>
 
-      {/* Sticky Real-time Consistency Tracker */}
-      {criteriaConsistency && (
+      {/* Sticky Real-time Consistency Tracker (Supports Step 1 & all Step 2 Matrices) */}
+      {trackerTabs.length > 0 && (
         <ConsistencyTracker
-          title="1단계: 평가 기준 간 쌍대비교"
-          check={criteriaConsistency}
+          tabs={trackerTabs}
+          activeTabId={activeTrackerTabId}
+          onSelectTab={handleSelectTrackerTab}
         />
       )}
 
@@ -364,7 +448,7 @@ export default function PublicSurveyPage() {
             <p className="text-indigo-800 leading-relaxed text-xs">
               제시된 두 항목 중 더 중요하다고 판단되는 항목 방향의 척도(1=동등, 3=약간 중요, 5=확실히 중요, 7=매우 중요, 9=절대적 중요)를 선택해 주세요.
               <br />
-              <strong>💡 실시간 일관성 검사:</strong> 응답 시 논리적 모순이나 일관성 비율(CR)이 0.10을 초과하면 경고 창과 개선 가이드가 표시됩니다.
+              <strong>💡 실시간 일관성 검사:</strong> 상단 게이지 바를 통해 1단계 평가 기준과 2단계 대안별 일관성(CR)을 실시간으로 전환하며 확인하실 수 있습니다.
             </p>
           </div>
 
@@ -397,8 +481,71 @@ export default function PublicSurveyPage() {
           </div>
         </div>
 
+        {/* ================= SECTION 0: DEMOGRAPHICS ================= */}
+        {survey.demographics && survey.demographics.length > 0 && (
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="w-7 h-7 rounded-xl bg-violet-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                i
+              </span>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  응답자 인적사항 (프로필)
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  통계 집계 및 분석을 위해 각 질문에 응답해 주세요.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              {survey.demographics.map(demo => (
+                <div key={demo.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                  <label className="block text-xs font-bold text-slate-800 mb-2">
+                    {demo.title} {demo.required && <span className="text-rose-500">*</span>}
+                  </label>
+
+                  {demo.type === 'select' ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {demo.options.map(opt => {
+                        const isSelected = demographicAnswers[demo.id] === opt;
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() =>
+                              setDemographicAnswers(prev => ({ ...prev, [demo.id]: opt }))
+                            }
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition border ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={demographicAnswers[demo.id] || ''}
+                      onChange={e =>
+                        setDemographicAnswers(prev => ({ ...prev, [demo.id]: e.target.value }))
+                      }
+                      placeholder="답변을 입력하세요"
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ================= SECTION 1: CRITERIA PAIRWISE ================= */}
-        <div className="mb-12">
+        <div id="section-criteria" className="mb-12">
           <div className="flex items-center gap-2 mb-4">
             <span className="w-7 h-7 rounded-xl bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
               1
@@ -434,7 +581,7 @@ export default function PublicSurveyPage() {
 
         {/* ================= SECTION 2: ALTERNATIVES PAIRWISE (IF ENABLED) ================= */}
         {survey.hasAlternatives && survey.alternatives.length > 1 && (
-          <div className="mb-12">
+          <div id="section-alternatives" className="mb-12">
             <div className="flex items-center gap-2 mb-4">
               <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
                 2
@@ -455,12 +602,16 @@ export default function PublicSurveyPage() {
                 const isActive = activeAltCritIndex === idx;
                 const ansCount = Object.keys(altAnswers[crit.id] || {}).length;
                 const isDone = ansCount === altPairs.length && altPairs.length > 0;
+                const critCheck = altConsistencies[crit.id];
 
                 return (
                   <button
                     key={crit.id}
                     type="button"
-                    onClick={() => setActiveAltCritIndex(idx)}
+                    onClick={() => {
+                      setActiveAltCritIndex(idx);
+                      setActiveTrackerTabId(crit.id);
+                    }}
                     className={`px-4 py-2.5 rounded-2xl text-xs font-semibold whitespace-nowrap transition border flex items-center gap-2 ${
                       isActive
                         ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200'
@@ -481,6 +632,11 @@ export default function PublicSurveyPage() {
                     >
                       {ansCount}/{altPairs.length}
                     </span>
+                    {critCheck && critCheck.answeredPairs >= 3 && (
+                      <span className={`text-[10px] font-mono ${critCheck.isAcceptable ? 'text-emerald-300' : 'text-rose-300'}`}>
+                        (CR {critCheck.cr.toFixed(2)})
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -488,6 +644,7 @@ export default function PublicSurveyPage() {
 
             {/* Current Active Criterion Header */}
             {currentAltCrit && (
+
               <div className="bg-slate-100/80 p-4 rounded-2xl mb-4 border border-slate-200">
                 <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider block mb-0.5">
                   현재 평가 기준

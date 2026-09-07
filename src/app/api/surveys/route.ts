@@ -31,6 +31,7 @@ export async function GET() {
     ...s,
     criteria: JSON.parse(s.criteria || '[]'),
     alternatives: JSON.parse(s.alternatives || '[]'),
+    demographics: JSON.parse(s.demographics || '[]'),
     responseCount: s._count.responses,
   }));
 
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { title, description, criteria, alternatives, hasAlternatives } = body;
+    const { title, description, criteria, alternatives, hasAlternatives, demographics } = body;
 
     if (!title || !criteria || criteria.length < 2) {
       return NextResponse.json(
@@ -79,8 +80,10 @@ export async function POST(request: Request) {
         hasAlternatives: Boolean(hasAlternatives),
         criteria: JSON.stringify(criteria),
         alternatives: JSON.stringify(alternatives || []),
+        demographics: JSON.stringify(demographics || []),
       },
     });
+
 
     return NextResponse.json({ success: true, survey });
   } catch (err: any) {
