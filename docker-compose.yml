@@ -8,11 +8,12 @@ services:
     container_name: ahp-site
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "8854:3000"
     environment:
       - DATABASE_URL=file:/app/data/ahp.db
       - JWT_SECRET=ahp-nas-super-secret-key-2026-production
-      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - NEXT_PUBLIC_APP_URL=http://localhost:8854
+
       - PORT=3000
       - NODE_ENV=production
     volumes:
