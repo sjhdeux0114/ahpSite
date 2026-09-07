@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  ahp-site:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ahp-site
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=file:/app/data/ahp.db
+      - JWT_SECRET=ahp-nas-super-secret-key-2026-production
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - PORT=3000
+      - NODE_ENV=production
+    volumes:
+      # NAS 영구 저장소 볼륨 매핑 (SQLite 데이터베이스 보존)
+      - ./data:/app/data
