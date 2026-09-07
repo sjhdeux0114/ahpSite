@@ -6,7 +6,9 @@ import {
   calculateAHP,
   aggregateGroupMatrices,
   synthesizePriorities,
+  getRandomIndex,
   AHPResult,
+  SubCriterionResult,
 } from '@/lib/ahp/calculator';
 
 export async function GET(
@@ -98,6 +100,58 @@ export async function GET(
   const groupCritMatrix = aggregateGroupMatrices(individualCritMatrices);
   const criteriaAHP = calculateAHP(groupCritMatrix);
 
+  // 1-B. Group Subcriteria Matrix Aggregation (per criterion)
+  const subcriteriaAHPByCriteria: Record<string, AHPResult> = {};
+  const allSubList: Array<SubCriterionResult> = [];
+  let sumWeightedCI = 0;
+  let sumWeightedRI = 0;
+  let hasAnySubcriteria = false;
+
+  criteria.forEach((crit: any, cIdx: number) => {
+    const subs = crit.subcriteria || [];
+    const critWeight = criteriaAHP.weights[cIdx] || 0;
+
+    if (subs.length >= 2) {
+      hasAnySubcriteria = true;
+      const subIds = subs.map((s: any) => s.id);
+      const individualSubMatrices = targetResponses.map(r =>
+        buildMatrix(subIds, r.answers.subcriteria?.[crit.id] || {})
+      );
+      const groupSubMatrix = aggregateGroupMatrices(individualSubMatrices);
+      const subAHP = calculateAHP(groupSubMatrix);
+      subcriteriaAHPByCriteria[crit.id] = subAHP;
+
+      const subRI = getRandomIndex(subs.length);
+      sumWeightedCI += critWeight * subAHP.ci;
+      sumWeightedRI += critWeight * subRI;
+
+      subs.forEach((s: any, sIdx: number) => {
+        const localWeight = subAHP.weights[sIdx] || 0;
+        const globalWeight = critWeight * localWeight;
+        allSubList.push({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          criterionId: crit.id,
+          criterionName: crit.name,
+          localWeight: Number(localWeight.toFixed(4)),
+          globalWeight: Number(globalWeight.toFixed(4)),
+          globalRank: 0,
+        });
+      });
+    }
+  });
+
+  allSubList.sort((a, b) => b.globalWeight - a.globalWeight);
+  allSubList.forEach((item, idx) => {
+    item.globalRank = idx + 1;
+  });
+
+  const mainRI = getRandomIndex(criteria.length);
+  const compositeCI = Number((criteriaAHP.ci + sumWeightedCI).toFixed(4));
+  const compositeRI = Number((mainRI + sumWeightedRI).toFixed(4));
+  const compositeCR = compositeRI > 0 ? Number((compositeCI / compositeRI).toFixed(4)) : 0.0;
+
   // 2. Group Alternatives Matrix Aggregation (per criterion)
   let alternativesAHPByCriteria: Record<string, AHPResult> = {};
   let finalAlternativeWeights: { alternativeWeights: number[]; contributionMatrix: number[][] } | null = null;
@@ -131,6 +185,13 @@ export async function GET(
       analyzedResponses: targetResponses.length,
       validResponsesCount: parsedResponses.filter(r => r.isValid).length,
       criteriaAHP,
+      subcriteriaAHPByCriteria,
+      allSubcriteria: allSubList,
+      compositeCI,
+      compositeRI,
+      compositeCR,
+      isHierarchyConsistent: compositeCR <= 0.10,
+      hasSubcriteria: hasAnySubcriteria,
       alternativesAHPByCriteria,
       finalAlternativeWeights,
     },

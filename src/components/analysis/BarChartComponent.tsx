@@ -12,7 +12,7 @@ interface BarItem {
 interface BarChartProps {
   title: string;
   items: BarItem[];
-  color?: 'indigo' | 'emerald' | 'amber';
+  color?: 'indigo' | 'emerald' | 'amber' | 'purple';
 }
 
 export default function BarChartComponent({ title, items, color = 'indigo' }: BarChartProps) {
@@ -37,6 +37,12 @@ export default function BarChartComponent({ title, items, color = 'indigo' }: Ba
       bg: 'bg-amber-50',
       text: 'text-amber-700',
       rank: 'bg-amber-100 text-amber-800',
+    },
+    purple: {
+      bar: 'bg-purple-600',
+      bg: 'bg-purple-50',
+      text: 'text-purple-700',
+      rank: 'bg-purple-100 text-purple-800',
     },
   };
 

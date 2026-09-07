@@ -6,13 +6,27 @@ export interface SurveyExportData {
   description?: string;
   createdAt: Date;
   status: string;
-  criteria: Array<{ id: string; name: string; description?: string }>;
+  criteria: Array<{ id: string; name: string; description?: string; subcriteria?: Array<{ id: string; name: string; description?: string }> }>;
   alternatives: Array<{ id: string; name: string; description?: string }>;
   demographics?: Array<{ id: string; title: string }>;
   hasAlternatives: boolean;
+  hasSubcriteria?: boolean;
   totalResponses: number;
   validResponses: number;
   criteriaAHP: AHPResult;
+  subcriteriaAHPByCriteria?: Record<string, AHPResult>;
+  allSubcriteria?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    criterionId: string;
+    criterionName: string;
+    localWeight: number;
+    globalWeight: number;
+    globalRank: number;
+  }>;
+  compositeCR?: number;
+  isHierarchyConsistent?: boolean;
   alternativesAHPByCriteria?: Record<string, AHPResult>;
   finalAlternativeWeights?: {
     alternativeWeights: number[];
@@ -113,9 +127,37 @@ export async function generateExcelReport(data: SurveyExportData): Promise<Buffe
   ]).font = { bold: true, color: { argb: data.criteriaAHP.isConsistent ? 'FF15803D' : 'FFB91C1C' } };
   wsSummary.addRow([]);
 
+  // Subcriteria Table (if exists)
+  if (data.allSubcriteria && data.allSubcriteria.length > 0) {
+    wsSummary.addRow(['2. 세부영역(Sub-criteria) 종합 전역 우선순위']).font = subTitleFont;
+    const subHeader = wsSummary.addRow(['종합 순위', '상위 대분류', '세부영역명', '세부 설명', '국소 가중치 (Local)', '전역 가중치 (Global)']);
+    subHeader.eachCell(cell => {
+      cell.fill = headerFill;
+      cell.font = headerFont;
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+
+    data.allSubcriteria.forEach(s => {
+      const row = wsSummary.addRow([
+        s.globalRank,
+        s.criterionName,
+        s.name,
+        s.description || '-',
+        `${(s.localWeight * 100).toFixed(2)}%`,
+        `${(s.globalWeight * 100).toFixed(2)}%`,
+      ]);
+      row.eachCell(cell => { cell.border = borderStyle; });
+      row.getCell(1).alignment = { horizontal: 'center' };
+      row.getCell(5).alignment = { horizontal: 'right' };
+      row.getCell(6).alignment = { horizontal: 'right' };
+    });
+    wsSummary.addRow([]);
+  }
+
   // Alternatives Table (if exists)
   if (data.hasAlternatives && data.finalAlternativeWeights && data.alternatives.length > 0) {
-    wsSummary.addRow(['2. 대안(Alternatives) 종합 우선순위']).font = subTitleFont;
+    const sectionNum = data.allSubcriteria && data.allSubcriteria.length > 0 ? 3 : 2;
+    wsSummary.addRow([`${sectionNum}. 대안(Alternatives) 종합 우선순위`]).font = subTitleFont;
     const altHeader = wsSummary.addRow(['최종 순위', '대안명', '설명', '종합 점수(가중치)', '백분율 (%)']);
     altHeader.eachCell(cell => {
       cell.fill = headerFill;

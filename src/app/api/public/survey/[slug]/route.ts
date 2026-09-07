@@ -58,9 +58,14 @@ export async function POST(
 
   try {
     const body = await request.json();
-    const { respondentName, respondentEmail, answers, demographics } = body;
+    const { respondentName, respondentEmail, demographics } = body;
+    const answers = body.answers || {
+      criteria: body.criteriaAnswers || {},
+      subcriteria: body.subcriteriaAnswers || {},
+      alternatives: body.alternativesAnswers || {},
+    };
 
-    const criteria: Array<{ id: string; name: string }> = JSON.parse(survey.criteria || '[]');
+    const criteria: Array<{ id: string; name: string; description?: string; subcriteria?: Array<{ id: string; name: string; description?: string }> }> = JSON.parse(survey.criteria || '[]');
     const alternatives: Array<{ id: string; name: string }> = JSON.parse(survey.alternatives || '[]');
     const criteriaIds = criteria.map(c => c.id);
     const altIds = alternatives.map(a => a.id);
@@ -70,6 +75,22 @@ export async function POST(
     const criteriaAHP = calculateAHP(criteriaMatrix);
 
     let isAllConsistent = criteriaAHP.isConsistent;
+    const subcriteriaCR: Record<string, number> = {};
+
+    // Calculate Subcriteria CR
+    for (const crit of criteria) {
+      const subs = crit.subcriteria || [];
+      if (subs.length >= 2) {
+        const subIds = subs.map(s => s.id);
+        const subMatrix = buildMatrix(subIds, answers.subcriteria?.[crit.id] || {});
+        const subAHP = calculateAHP(subMatrix);
+        subcriteriaCR[crit.id] = subAHP.cr;
+        if (!subAHP.isConsistent) {
+          isAllConsistent = false;
+        }
+      }
+    }
+
     const alternativesCR: Record<string, number> = {};
 
     if (survey.hasAlternatives && alternatives.length > 0) {
@@ -86,6 +107,7 @@ export async function POST(
     const crResults = {
       criteriaCR: criteriaAHP.cr,
       criteriaCI: criteriaAHP.ci,
+      subcriteriaCR,
       alternativesCR,
       isConsistent: isAllConsistent,
     };

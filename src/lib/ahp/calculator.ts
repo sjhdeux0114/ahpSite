@@ -386,3 +386,117 @@ export function synthesizePriorities(
     contributionMatrix,
   };
 }
+
+export interface SubCriterionItem {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface HierarchyCriterionItem {
+  id: string;
+  name: string;
+  description?: string;
+  subcriteria?: SubCriterionItem[];
+}
+
+export interface SubCriterionResult {
+  id: string;
+  name: string;
+  description?: string;
+  criterionId: string;
+  criterionName: string;
+  localWeight: number;   // sums to 1.0 within parent criterion
+  globalWeight: number;  // criterionWeight * localWeight (sums to 1.0 across all subcriteria)
+  globalRank: number;
+}
+
+export interface HierarchicalAHPResult {
+  criteriaAHP: AHPResult;
+  subcriteriaAHPByCriteria: Record<string, AHPResult>;
+  allSubcriteria: SubCriterionResult[];
+  compositeCI: number;
+  compositeRI: number;
+  compositeCR: number;
+  isHierarchyConsistent: boolean;
+  hasSubcriteria: boolean;
+}
+
+/**
+ * Calculates hierarchical AHP weights across Main Criteria and Sub-criteria:
+ * 1. Derives Main Criteria weights (w_i).
+ * 2. Derives Local Subcriteria weights (w_local_ij) within each criterion.
+ * 3. Synthesizes Global Subcriteria weights (w_global_ij = w_i * w_local_ij).
+ * 4. Derives Saaty's Hierarchy Consistency Ratio (CR_H = CI_H / RI_H).
+ */
+export function calculateHierarchicalAHP(
+  criteria: HierarchyCriterionItem[],
+  criteriaAnswers: PairwiseAnswerMap,
+  subcriteriaAnswersByCrit: Record<string, PairwiseAnswerMap>
+): HierarchicalAHPResult {
+  const critIds = criteria.map(c => c.id);
+  const critMatrix = buildMatrix(critIds, criteriaAnswers);
+  const criteriaAHP = calculateAHP(critMatrix);
+
+  const subcriteriaAHPByCriteria: Record<string, AHPResult> = {};
+  const allSubList: Array<Omit<SubCriterionResult, 'globalRank'>> = [];
+
+  let sumWeightedCI = 0;
+  let sumWeightedRI = 0;
+  let totalSubcriteriaCount = 0;
+
+  criteria.forEach((crit, cIdx) => {
+    const critWeight = criteriaAHP.weights[cIdx] || 0;
+    const subs = crit.subcriteria || [];
+
+    if (subs.length > 0) {
+      totalSubcriteriaCount += subs.length;
+      const subIds = subs.map(s => s.id);
+      const subMatrix = buildMatrix(subIds, subcriteriaAnswersByCrit[crit.id] || {});
+      const subAHP = calculateAHP(subMatrix);
+      subcriteriaAHPByCriteria[crit.id] = subAHP;
+
+      const subRI = getRandomIndex(subs.length);
+      sumWeightedCI += critWeight * subAHP.ci;
+      sumWeightedRI += critWeight * subRI;
+
+      subs.forEach((s, sIdx) => {
+        const localWeight = subAHP.weights[sIdx] || 0;
+        const globalWeight = critWeight * localWeight;
+        allSubList.push({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          criterionId: crit.id,
+          criterionName: crit.name,
+          localWeight: Number(localWeight.toFixed(4)),
+          globalWeight: Number(globalWeight.toFixed(4)),
+        });
+      });
+    }
+  });
+
+  // Sort subcriteria descending by global weight and assign rank
+  allSubList.sort((a, b) => b.globalWeight - a.globalWeight);
+  const allSubcriteria: SubCriterionResult[] = allSubList.map((item, idx) => ({
+    ...item,
+    globalRank: idx + 1,
+  }));
+
+  const mainRI = getRandomIndex(criteria.length);
+  const compositeCI = Number((criteriaAHP.ci + sumWeightedCI).toFixed(4));
+  const compositeRI = Number((mainRI + sumWeightedRI).toFixed(4));
+  const compositeCR = compositeRI > 0 ? Number((compositeCI / compositeRI).toFixed(4)) : 0.0;
+
+  return {
+    criteriaAHP,
+    subcriteriaAHPByCriteria,
+    allSubcriteria,
+    compositeCI,
+    compositeRI,
+    compositeCR,
+    isHierarchyConsistent: compositeCR <= 0.10,
+    hasSubcriteria: totalSubcriteriaCount > 0,
+  };
+}
+

@@ -80,6 +80,72 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
     ),
   ];
 
+  // Subcriteria Table (if exists)
+  let subcriteriaRows: TableRow[] = [];
+  if (data.allSubcriteria && data.allSubcriteria.length > 0) {
+    subcriteriaRows = [
+      new TableRow({
+        tableHeader: true,
+        children: [
+          new TableCell({
+            width: { size: 1000, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, fill: tableHeaderBg },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '종합순위', bold: true })] })],
+          }),
+          new TableCell({
+            width: { size: 2200, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, fill: tableHeaderBg },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '상위 대분류', bold: true })] })],
+          }),
+          new TableCell({
+            width: { size: 2500, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, fill: tableHeaderBg },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '세부영역명', bold: true })] })],
+          }),
+          new TableCell({
+            width: { size: 2800, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, fill: tableHeaderBg },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '설명', bold: true })] })],
+          }),
+          new TableCell({
+            width: { size: 1200, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, fill: tableHeaderBg },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '국소 가중치', bold: true })] })],
+          }),
+          new TableCell({
+            width: { size: 1300, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, fill: tableHeaderBg },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '전역 가중치', bold: true })] })],
+          }),
+        ],
+      }),
+      ...data.allSubcriteria.map(s =>
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, text: String(s.globalRank) })],
+            }),
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: s.criterionName, bold: true })] })],
+            }),
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: s.name, bold: true })] })],
+            }),
+            new TableCell({
+              children: [new Paragraph({ text: s.description || '-' })],
+            }),
+            new TableCell({
+              children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: s.localWeight.toFixed(4) })],
+            }),
+            new TableCell({
+              children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: `${(s.globalWeight * 100).toFixed(2)}%` })],
+            }),
+          ],
+        })
+      ),
+    ];
+  }
+
   // Alternatives Table
   let alternativeRows: TableRow[] = [];
   if (data.hasAlternatives && data.finalAlternativeWeights && data.alternatives.length > 0) {
@@ -182,8 +248,9 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
     ];
   }
 
-  const doc = new Document({
+  let sectionNum = 1;
 
+  const doc = new Document({
     sections: [
       {
         properties: {},
@@ -220,7 +287,10 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
             children: [
               new TextRun({ text: `• 보고서 생성일: ${new Date().toLocaleDateString('ko-KR')}\n` }),
               new TextRun({ text: `• 총 수집 응답: ${data.totalResponses}명 (유효 응답: ${data.validResponses}명, 통과율: ${data.totalResponses > 0 ? ((data.validResponses / data.totalResponses) * 100).toFixed(1) : 0}%)\n` }),
-              new TextRun({ text: `• 집단 일관성 비율(Group CR): ${data.criteriaAHP.cr} (${data.criteriaAHP.isConsistent ? '양호' : '주의'})\n` }),
+              new TextRun({ text: `• 평가 기준 일관성 비율(Main CR): ${data.criteriaAHP.cr} (${data.criteriaAHP.isConsistent ? '양호' : '주의'})\n` }),
+              ...(data.hasSubcriteria && data.compositeCR !== undefined
+                ? [new TextRun({ text: `• 계층 종합 일관성 비율(Composite CR_H): ${data.compositeCR} (${data.isHierarchyConsistent ? '양호' : '주의'})\n` })]
+                : []),
             ],
           }),
 
@@ -228,13 +298,13 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
           new Paragraph({
             heading: HeadingLevel.HEADING_1,
             spacing: { before: 400, after: 200 },
-            children: [new TextRun({ text: '1. 분석 개요 및 방법론', bold: true, color: primaryColor })],
+            children: [new TextRun({ text: `${sectionNum++}. 분석 개요 및 방법론`, bold: true, color: primaryColor })],
           }),
           new Paragraph({
             spacing: { after: 200 },
             children: [
               new TextRun({
-                text: '본 조사는 계층화 의사결정 기법(Analytic Hierarchy Process, AHP)을 기반으로 다수의 평가 기준과 대안에 대해 1:1 쌍대비교(Pairwise Comparison)를 수행하여 정량적 가중치와 종합 우선순위를 도출했습니다.\n' +
+                text: '본 조사는 계층화 의사결정 기법(Analytic Hierarchy Process, AHP)을 기반으로 다수의 평가 기준과 세부영역 및 대안에 대해 1:1 쌍대비교(Pairwise Comparison)를 수행하여 정량적 가중치와 종합 우선순위를 도출했습니다.\n' +
                       '설문 응답 시 실시간 일관성 검증을 통해 논리적 모순을 방지하였으며, 수집된 개별 응답자들의 쌍대비교 행렬을 기하평균(Geometric Mean, AIJ) 방식으로 집계하여 집단 합의 가중치를 계산하였습니다.',
               }),
             ],
@@ -244,7 +314,7 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
           new Paragraph({
             heading: HeadingLevel.HEADING_1,
             spacing: { before: 400, after: 200 },
-            children: [new TextRun({ text: '2. 평가 기준(Criteria) 중요도 분석', bold: true, color: primaryColor })],
+            children: [new TextRun({ text: `${sectionNum++}. 평가 기준(Criteria) 대분류 중요도 분석`, bold: true, color: primaryColor })],
           }),
           new Table({
             rows: criteriaRows,
@@ -254,7 +324,7 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
             spacing: { before: 150, after: 300 },
             children: [
               new TextRun({
-                text: `* 최대고유치(λmax): ${data.criteriaAHP.lambdaMax}, 일관성지수(CI): ${data.criteriaAHP.ci}, 일관성비율(CR): ${data.criteriaAHP.cr} (기준치 CR ≤ 0.10 충족 여부: ${data.criteriaAHP.isConsistent ? '충족' : '초과'})`,
+                text: `* 최대고유치(λmax): ${data.criteriaAHP.lambdaMax}, 일관성지수(CI): ${data.criteriaAHP.ci}, 일관성비율(CR): ${data.criteriaAHP.cr} (기준치 CR ≤ 0.10 충족 여부: ${data.criteriaAHP.isConsistent ? '충족 (일관성 양호)' : '초과 (주의 요망)'})`,
                 italics: true,
                 size: 18,
                 color: '64748B',
@@ -262,13 +332,40 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
             ],
           }),
 
-          // Section 3: Alternatives (if exists)
+          // Section 3: Subcriteria (if exists)
+          ...(subcriteriaRows.length > 0
+            ? [
+                new Paragraph({
+                  heading: HeadingLevel.HEADING_1,
+                  spacing: { before: 400, after: 200 },
+                  children: [new TextRun({ text: `${sectionNum++}. 세부영역(Sub-criteria) 계층 분석 및 종합 우선순위`, bold: true, color: primaryColor })],
+                }),
+                new Table({
+                  rows: subcriteriaRows,
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                }),
+                new Paragraph({
+                  spacing: { before: 150, after: 300 },
+                  children: [
+                    new TextRun({
+                      text: `* 국소 가중치(Local Weight)는 해당 대분류 내에서의 상대적 기여도(합산 100%)이며, 전역 가중치(Global Weight)는 상위 대분류 가중치와 곱하여 도출된 전체 세부영역 간의 통합 가중치입니다.\n` +
+                            `* 계층 종합 일관성 비율(Composite CR_H): ${data.compositeCR ?? '-'} (기준치 CR_H ≤ 0.10 충족 여부: ${data.isHierarchyConsistent ? '충족 (신뢰성 확보)' : '초과 (주의 요망)'})`,
+                      italics: true,
+                      size: 18,
+                      color: '64748B',
+                    }),
+                  ],
+                }),
+              ]
+            : []),
+
+          // Section 4: Alternatives (if exists)
           ...(alternativeRows.length > 0
             ? [
                 new Paragraph({
                   heading: HeadingLevel.HEADING_1,
                   spacing: { before: 400, after: 200 },
-                  children: [new TextRun({ text: '3. 대안(Alternatives) 종합 우선순위', bold: true, color: primaryColor })],
+                  children: [new TextRun({ text: `${sectionNum++}. 대안(Alternatives) 종합 우선순위`, bold: true, color: primaryColor })],
                 }),
                 new Table({
                   rows: alternativeRows,
@@ -292,7 +389,7 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
                 new Paragraph({
                   heading: HeadingLevel.HEADING_1,
                   spacing: { before: 400, after: 200 },
-                  children: [new TextRun({ text: '4. 응답자 인적사항(프로필) 특성 분석', bold: true, color: primaryColor })],
+                  children: [new TextRun({ text: `${sectionNum++}. 응답자 인적사항(프로필) 특성 분석`, bold: true, color: primaryColor })],
                 }),
                 new Table({
                   rows: demoTableRows,
@@ -311,20 +408,25 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
               ]
             : []),
 
-          // Section 5: Summary & Conclusion
+          // Section: Summary & Conclusion
           new Paragraph({
             heading: HeadingLevel.HEADING_1,
             spacing: { before: 400, after: 200 },
-            children: [new TextRun({ text: '5. 결론 및 종합 제언', bold: true, color: primaryColor })],
+            children: [new TextRun({ text: `${sectionNum++}. 결론 및 종합 제언`, bold: true, color: primaryColor })],
           }),
 
           new Paragraph({
             spacing: { after: 200 },
             children: [
               new TextRun({
-                text: `본 AHP 분석 결과, 평가 기준 중에서는 '${critList[0]?.name}'이(가) ${(critList[0]?.weight * 100).toFixed(1)}%의 가중치로 가장 중요한 요인으로 도출되었습니다.` +
+                text: `본 AHP 분석 결과, 평가 기준 대분류 중에서는 '${critList[0]?.name}'이(가) ${(critList[0]?.weight * 100).toFixed(1)}%의 가중치로 가장 중요한 요인으로 도출되었습니다.` +
                       (critList[1] ? ` 그 뒤를 이어 '${critList[1]?.name}'(${(critList[1]?.weight * 100).toFixed(1)}%) 순으로 중요도가 높게 나타났습니다.` : '') +
-                      ` 전체 집단 일관성 비율은 ${data.criteriaAHP.cr}로 분석 결과의 신뢰성을 확보하였습니다.`,
+                      (data.allSubcriteria && data.allSubcriteria.length > 0
+                        ? ` 전체 세부영역 중에서는 '${data.allSubcriteria[0]?.criterionName} > ${data.allSubcriteria[0]?.name}'이(가) 전역 가중치 ${(data.allSubcriteria[0]?.globalWeight * 100).toFixed(2)}%로 가장 높은 최종 우선순위를 기록했습니다.`
+                        : '') +
+                      ` 집단 일관성 비율(Group CR)은 ${data.criteriaAHP.cr}` +
+                      (data.hasSubcriteria && data.compositeCR !== undefined ? ` (계층 종합 CR_H: ${data.compositeCR})` : '') +
+                      `으로 분석 결과의 신뢰성을 확보하였습니다.`,
               }),
             ],
           }),
