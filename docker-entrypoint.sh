@@ -9,11 +9,12 @@ if [ -z "$DATABASE_URL" ]; then
   export DATABASE_URL="file:/app/data/ahp.db"
 fi
 
-# Run prisma db push if npx/prisma is available, or ensure directory exists
+# Ensure SQLite data directory exists with full read/write permissions
 mkdir -p /app/data
+chmod 777 /app/data || true
 
-# Sync schema to SQLite DB
-npx prisma db push --skip-generate || echo "Prisma push completed or using existing database."
+# Attempt prisma db push if available (fails gracefully in standalone runner where ensureDbSchema handles it)
+npx prisma db push --skip-generate 2>/dev/null || echo "Native schema migration will be handled by Next.js application at startup."
 
 echo "==> Starting Next.js Server on port ${PORT:-3000}..."
 exec node server.js

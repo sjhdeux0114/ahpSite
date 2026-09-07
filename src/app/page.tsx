@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { prisma, ensureDbSchema } from '@/lib/prisma';
 import Navbar from '@/components/Navbar';
 import {
   BarChart3,
@@ -13,7 +15,15 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-export default function Home() {
+export const dynamic = 'force-dynamic';
+
+export default async function Home() {
+  await ensureDbSchema();
+  const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
+  if (adminCount === 0) {
+    redirect('/setup');
+  }
+
   return (
     <>
       <Navbar />

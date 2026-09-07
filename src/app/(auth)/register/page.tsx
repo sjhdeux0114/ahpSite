@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BarChart3, UserPlus, AlertCircle } from 'lucide-react';
@@ -12,6 +12,17 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/setup')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.needsSetup) {
+          router.replace('/setup');
+        }
+      })
+      .catch(() => {});
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

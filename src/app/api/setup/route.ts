@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, ensureDbSchema } from '@/lib/prisma';
 import { hashPassword, signToken, AUTH_COOKIE } from '@/lib/auth';
 
 export async function GET() {
   try {
+    await ensureDbSchema();
     const adminCount = await prisma.user.count({
       where: { role: 'ADMIN' },
     });
@@ -21,6 +22,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    await ensureDbSchema();
     const adminCount = await prisma.user.count({
       where: { role: 'ADMIN' },
     });

@@ -1,9 +1,22 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, ensureDbSchema } from '@/lib/prisma';
 import { hashPassword, signToken, AUTH_COOKIE } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
+    await ensureDbSchema();
+
+    const adminCount = await prisma.user.count({
+      where: { role: 'ADMIN' },
+    });
+
+    if (adminCount === 0) {
+      return NextResponse.json(
+        { error: '시스템 초기 설정이 필요합니다. 관리자 마법사(/setup)로 이동하여 관리자 계정을 먼저 생성해주세요.', needsSetup: true },
+        { status: 400 }
+      );
+    }
+
     const { email, password, name } = await request.json();
 
     if (!email || !password || !name) {

@@ -17,10 +17,13 @@ export default function LoginPage() {
     fetch('/api/setup')
       .then(res => res.json())
       .then(data => {
-        if (data?.needsSetup) setNeedsSetup(true);
+        if (data?.needsSetup) {
+          setNeedsSetup(true);
+          router.replace('/setup');
+        }
       })
       .catch(() => {});
-  }, []);
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
