@@ -21,6 +21,8 @@ import {
   UserX,
   CheckCircle2,
   X,
+  KeyRound,
+  Lock,
 } from 'lucide-react';
 
 interface UserData {
@@ -63,9 +65,54 @@ export default function AdminUsersPage() {
   const [deleting, setDeleting] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
+  // Password change modal state
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passError, setPassError] = useState('');
+  const [passUpdating, setPassUpdating] = useState(false);
+
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassError('');
+    if (newPassword.length < 6) {
+      setPassError('새 비밀번호는 최소 6자 이상이어야 합니다.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPassError('새 비밀번호와 확인이 일치하지 않습니다.');
+      return;
+    }
+
+    setPassUpdating(true);
+    try {
+      const res = await fetch('/api/admin/password', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPassError(data.error || '비밀번호 변경에 실패했습니다.');
+        setPassUpdating(false);
+        return;
+      }
+      showToast(data.message || '관리자 비밀번호가 변경되었습니다.');
+      setPasswordModalOpen(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch {
+      setPassError('서버와의 통신에 실패했습니다.');
+    } finally {
+      setPassUpdating(false);
+    }
   };
 
   const fetchUsers = async () => {
@@ -285,14 +332,23 @@ export default function AdminUsersPage() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={fetchUsers}
-              disabled={refreshing}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-sm font-medium transition"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              목록 새로고침
-            </button>
+            <div className="flex items-center gap-2 self-stretch sm:self-auto">
+              <button
+                onClick={() => setPasswordModalOpen(true)}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 border border-purple-400/40 text-white rounded-xl text-sm font-semibold shadow-sm transition flex-1 sm:flex-initial"
+              >
+                <KeyRound className="w-4 h-4" />
+                비밀번호 변경
+              </button>
+              <button
+                onClick={fetchUsers}
+                disabled={refreshing}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-sm font-medium transition flex-1 sm:flex-initial"
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                새로고침
+              </button>
+            </div>
           </div>
         </div>
 
@@ -614,6 +670,121 @@ export default function AdminUsersPage() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Change Modal */}
+      {passwordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative">
+            <button
+              onClick={() => {
+                setPasswordModalOpen(false);
+                setPassError('');
+              }}
+              disabled={passUpdating}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                <KeyRound className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">관리자 비밀번호 변경</h3>
+                <p className="text-xs text-slate-500">현재 관리자 계정의 비밀번호를 안전하게 변경합니다.</p>
+              </div>
+            </div>
+
+            {passError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{passError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  현재 비밀번호 (선택 확인)
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    placeholder="현재 비밀번호 (알고 있는 경우)"
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  새 비밀번호 <span className="text-purple-600 font-normal">(최소 6자 이상)</span>
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="새 비밀번호 입력"
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  새 비밀번호 확인
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="새 비밀번호 다시 입력"
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordModalOpen(false);
+                    setPassError('');
+                  }}
+                  disabled={passUpdating}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={passUpdating}
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold shadow-sm transition disabled:opacity-50"
+                >
+                  {passUpdating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      변경 중...
+                    </>
+                  ) : (
+                    '비밀번호 저장'
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

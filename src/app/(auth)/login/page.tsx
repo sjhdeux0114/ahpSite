@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BarChart3, LogIn, AlertCircle } from 'lucide-react';
+import { BarChart3, LogIn, AlertCircle, Sparkles } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +11,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/setup')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.needsSetup) setNeedsSetup(true);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +52,27 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col justify-center items-center px-4 py-12 bg-slate-50">
       <div className="w-full max-w-md">
+        {/* Needs Setup Banner */}
+        {needsSetup && (
+          <div className="mb-6 bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white p-4 rounded-2xl shadow-lg border border-purple-700/50 flex items-center justify-between gap-3 animate-pulse">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/30 text-purple-300 flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div className="text-xs">
+                <p className="font-bold text-sm text-white">초기 설정 대기 중</p>
+                <p className="text-purple-200">최고 관리자 비밀번호를 먼저 설정해주세요.</p>
+              </div>
+            </div>
+            <Link
+              href="/setup"
+              className="px-3.5 py-1.5 bg-purple-500 hover:bg-purple-400 text-white font-bold text-xs rounded-xl shadow transition shrink-0"
+            >
+              설정 시작 ➡️
+            </Link>
+          </div>
+        )}
+
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2.5 font-bold text-2xl text-indigo-700">
             <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-200">
