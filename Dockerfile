@@ -13,6 +13,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Ensure public directory exists
+RUN mkdir -p /app/public
+
 # Generate Prisma Client & Build Next.js standalone
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NODE_ENV production
@@ -31,8 +34,8 @@ ENV HOSTNAME "0.0.0.0"
 # Install openssl for prisma engine and dos2unix for line endings
 RUN apk add --no-cache openssl dos2unix
 
-# Create data directory for SQLite
-RUN mkdir -p /app/data
+# Create data directory for SQLite and public folder
+RUN mkdir -p /app/data /app/public
 
 # Copy built artifacts
 COPY --from=builder /app/public ./public
