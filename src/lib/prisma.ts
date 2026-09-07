@@ -13,7 +13,11 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 export async function ensureDbSchema() {
   if (globalForPrisma.dbEnsured) return;
   try {
-    await prisma.$executeRawUnsafe(`PRAGMA journal_mode = WAL;`);
+    try {
+      await prisma.$queryRawUnsafe('PRAGMA journal_mode = WAL;');
+    } catch {
+      // WAL mode is optional, ignore if not supported
+    }
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "User" (
         "id" TEXT NOT NULL PRIMARY KEY,
