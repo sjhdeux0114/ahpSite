@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BarChart3, LogOut, PlusCircle, LayoutDashboard, User as UserIcon } from 'lucide-react';
+import { BarChart3, LogOut, PlusCircle, LayoutDashboard, ShieldCheck, User as UserIcon } from 'lucide-react';
 
 interface UserInfo {
   id: string;
   email: string;
   name: string;
+  role?: string;
 }
 
 export default function Navbar() {
@@ -52,6 +53,15 @@ export default function Navbar() {
             <div className="h-8 w-20 bg-slate-100 rounded animate-pulse" />
           ) : user ? (
             <>
+              {user.role === 'ADMIN' && (
+                <Link
+                  href="/dashboard/admin/users"
+                  className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition px-3 py-1.5 rounded-lg shadow-xs"
+                >
+                  <ShieldCheck className="w-4 h-4 text-purple-600" />
+                  회원 관리
+                </Link>
+              )}
               <Link
                 href="/dashboard"
                 className="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-indigo-600 transition px-3 py-1.5 rounded-lg hover:bg-slate-100"
@@ -68,8 +78,13 @@ export default function Navbar() {
               </Link>
               <div className="h-5 w-px bg-slate-200 mx-1 hidden sm:block" />
               <div className="flex items-center gap-2 text-sm text-slate-700 font-medium pl-1">
-                <span className="hidden md:inline-block text-slate-500">
+                <span className="hidden md:inline-flex items-center gap-1.5 text-slate-500">
                   <span className="text-slate-800 font-semibold">{user.name}</span>님
+                  {user.role === 'ADMIN' && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
+                      ADMIN
+                    </span>
+                  )}
                 </span>
                 <button
                   onClick={handleLogout}

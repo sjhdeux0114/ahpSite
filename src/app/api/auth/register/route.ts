@@ -20,11 +20,13 @@ export async function POST(request: Request) {
     }
 
     const hashedPassword = await hashPassword(password);
+    const role = (email === 'admin@ahp.local' || email === 'sjhdeux@naver.com') ? 'ADMIN' : 'USER';
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
         name,
+        role,
       },
     });
 
@@ -32,11 +34,12 @@ export async function POST(request: Request) {
       userId: user.id,
       email: user.email,
       name: user.name,
+      role: user.role,
     });
 
     const response = NextResponse.json({
       success: true,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
     });
 
     response.cookies.set(AUTH_COOKIE.name, token, AUTH_COOKIE.options);

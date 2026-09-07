@@ -18,6 +18,7 @@ import {
   Users,
   Layers,
   AlertCircle,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface SurveyItem {
@@ -34,6 +35,7 @@ interface SurveyItem {
 }
 
 export default function DashboardPage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [surveys, setSurveys] = useState<SurveyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
@@ -54,6 +56,12 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.user) setCurrentUser(data.user);
+      })
+      .catch(() => {});
     fetchSurveys();
   }, []);
 
@@ -106,6 +114,35 @@ export default function DashboardPage() {
     <>
       <Navbar />
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        {/* Admin Quick Banner */}
+        {currentUser?.role === 'ADMIN' && (
+          <div className="mb-8 bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-sm">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-sm sm:text-base font-bold text-purple-950 flex items-center gap-2">
+                  시스템 관리자(Admin) 권한 활성화됨
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+                    관리자 전용
+                  </span>
+                </h4>
+                <p className="text-xs text-purple-700 mt-0.5">
+                  전체 등록 회원 조회, 권한 부여 및 불필요한 계정 탈퇴/삭제 관리가 가능합니다.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/dashboard/admin/users"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-sm transition self-stretch sm:self-auto justify-center"
+            >
+              <Users className="w-4 h-4" />
+              회원 관리 센터 바로가기 ➡️
+            </Link>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>

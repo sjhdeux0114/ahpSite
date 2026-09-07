@@ -10,6 +10,7 @@ export interface TokenPayload {
   userId: string;
   email: string;
   name: string;
+  role?: string;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -49,12 +50,20 @@ export async function getCurrentUser() {
   try {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { id: true, email: true, name: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, createdAt: true },
     });
     return user;
   } catch {
     return null;
   }
+}
+
+export async function requireAdmin() {
+  const user = await getCurrentUser();
+  if (!user || user.role !== 'ADMIN') {
+    return null;
+  }
+  return user;
 }
 
 export const AUTH_COOKIE = {
