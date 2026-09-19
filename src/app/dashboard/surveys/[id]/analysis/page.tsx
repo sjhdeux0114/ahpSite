@@ -300,25 +300,21 @@ export default function SurveyAnalysisPage() {
               <span>연구 모형도(계층도)</span>
             </a>
 
-            {survey.hasAlternatives && (
-              <a
-                href="#sensitivity-analysis-section"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold transition shadow-2xs"
-              >
-                <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
-                <span>대안 민감도 분석</span>
-              </a>
-            )}
+            <a
+              href="#sensitivity-analysis-section"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold transition shadow-2xs"
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
+              <span>대안 민감도 분석</span>
+            </a>
 
-            {survey.demographics && survey.demographics.length > 0 && (
-              <a
-                href="#group-comparison-section"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition shadow-2xs"
-              >
-                <GitCompare className="w-3.5 h-3.5 text-blue-600" />
-                <span>집단별 비교 분석</span>
-              </a>
-            )}
+            <a
+              href="#group-comparison-section"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition shadow-2xs"
+            >
+              <GitCompare className="w-3.5 h-3.5 text-blue-600" />
+              <span>집단별 비교 분석</span>
+            </a>
           </div>
         </div>
 
@@ -476,17 +472,15 @@ export default function SurveyAnalysisPage() {
         </div>
 
         {/* Section: Alternative Sensitivity Analysis */}
-        {survey.hasAlternatives && (
-          <div id="sensitivity-analysis-section" className="mb-8 scroll-mt-6">
-            <SensitivityAnalysis
-              criteria={survey.criteria}
-              alternatives={survey.alternatives}
-              criteriaWeights={analysis?.criteriaAHP?.weights || []}
-              alternativesAHPByCriteria={analysis?.alternativesAHPByCriteria || {}}
-              hasAlternatives={survey.hasAlternatives}
-            />
-          </div>
-        )}
+        <div id="sensitivity-analysis-section" className="mb-8 scroll-mt-6">
+          <SensitivityAnalysis
+            criteria={survey.criteria}
+            alternatives={survey.alternatives || []}
+            criteriaWeights={analysis?.criteriaAHP?.weights || []}
+            alternativesAHPByCriteria={analysis?.alternativesAHPByCriteria || {}}
+            hasAlternatives={survey.hasAlternatives}
+          />
+        </div>
 
         {/* Hierarchical Breakdown Table if subcriteria exist */}
         {analysis?.hasSubcriteria && (
@@ -619,14 +613,12 @@ export default function SurveyAnalysisPage() {
         )}
 
         {/* Section: Group Comparison Cross Analysis */}
-        {survey.demographics && survey.demographics.length > 0 && responses.length >= 2 && (
-          <div id="group-comparison-section" className="mb-8 scroll-mt-6">
-            <GroupComparisonAnalysis
-              survey={survey}
-              responses={responses}
-            />
-          </div>
-        )}
+        <div id="group-comparison-section" className="mb-8 scroll-mt-6">
+          <GroupComparisonAnalysis
+            survey={survey}
+            responses={responses}
+          />
+        </div>
 
         {/* Demographics Breakdown Summary if exists */}
         {survey.demographics && survey.demographics.length > 0 && responses.length > 0 && (
