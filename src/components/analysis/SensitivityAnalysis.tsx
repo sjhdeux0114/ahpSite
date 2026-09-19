@@ -48,33 +48,22 @@ const ALT_COLORS = [
 ];
 
 export default function SensitivityAnalysis({
-  criteria,
-  alternatives,
-  criteriaWeights,
-  alternativesAHPByCriteria,
-  hasAlternatives,
+  criteria = [],
+  alternatives = [],
+  criteriaWeights = [],
+  alternativesAHPByCriteria = {},
+  hasAlternatives = false,
 }: SensitivityAnalysisProps) {
+  const isValidData = Boolean(hasAlternatives && alternatives.length >= 2 && criteria.length >= 2);
+
   const [selectedCritIdx, setSelectedCritIdx] = useState<number>(0);
   const [copied, setCopied] = useState<boolean>(false);
   const [downloading, setDownloading] = useState<boolean>(false);
 
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // 기본 검증: 대안 평가가 없거나 대안/기준이 2개 미만인 경우
-  if (!hasAlternatives || alternatives.length < 2 || criteria.length < 2) {
-    return (
-      <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/90 shadow-sm text-center py-10">
-        <Sliders className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-        <h4 className="text-sm font-bold text-slate-800">민감도 분석 (Sensitivity Analysis)</h4>
-        <p className="text-xs text-slate-500 mt-1">
-          대안 민감도 분석은 2개 이상의 평가 기준과 대안이 평가된 설문에서만 제공됩니다.
-        </p>
-      </div>
-    );
-  }
-
   const currentOrigCritWeight = criteriaWeights[selectedCritIdx] ?? 0;
-  const [sliderWeight, setSliderWeight] = useState<number>(currentOrigCritWeight);
+  const [sliderWeight, setSliderWeight] = useState<number>(criteriaWeights[0] ?? 0);
 
   // 선택된 기준이 바뀔 때 슬라이더 값을 해당 기준의 원래 가중치로 동기화
   const handleSelectCrit = (idx: number) => {
@@ -88,6 +77,9 @@ export default function SensitivityAnalysis({
 
   // --- 민감도 수학 계산 ---
   const sensitivityData = useMemo(() => {
+    if (!isValidData || !criteria[selectedCritIdx]) {
+      return { lines: [], breakEvens: [] };
+    }
     const selectedCrit = criteria[selectedCritIdx];
     const origW0 = criteriaWeights[selectedCritIdx] || 0.0001;
 
@@ -165,6 +157,19 @@ export default function SensitivityAnalysis({
   );
   const currentWinner = simulatedRanks[0];
 
+  // 기본 검증: 대안 평가가 없거나 대안/기준이 2개 미만인 경우
+  if (!isValidData) {
+    return (
+      <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/90 shadow-sm text-center py-10">
+        <Sliders className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+        <h4 className="text-sm font-bold text-slate-800">민감도 분석 (Sensitivity Analysis)</h4>
+        <p className="text-xs text-slate-500 mt-1">
+          대안 민감도 분석은 2개 이상의 평가 기준과 대안이 평가된 설문에서만 제공됩니다.
+        </p>
+      </div>
+    );
+  }
+
   // --- 차트 SVG 좌표 매핑 ---
   const chartW = 600;
   const chartH = 320;
@@ -192,7 +197,8 @@ export default function SensitivityAnalysis({
 
     breakEvenSentence = `대안 민감도 분석(Sensitivity Analysis) 결과, '${selectedCritName}'의 중요도 가중치가 현재 ${origPercent}%에서 ${(keyInversion.critWeight * 100).toFixed(1)}% 수준으로 변동될 때, '${keyInversion.altA}'와(과) '${keyInversion.altB}' 간의 우선순위 역전(Rank Reversal) 현상이 발생하는 것으로 분석되었다.`;
   } else {
-    breakEvenSentence = `대안 민감도 분석(Sensitivity Analysis) 결과, '${selectedCritName}'의 가중치가 0%에서 100%까지 변동하더라도 최우선 대안인 '${currentWinner.alt.name}'의 1위 순위는 견고하게 유지되는 것으로 나타나, 평가 결과의 구조적 안정성을 확인하였다.`;
+    const winnerName = currentWinner?.alt?.name || '최우선 대안';
+    breakEvenSentence = `대안 민감도 분석(Sensitivity Analysis) 결과, '${selectedCritName}'의 가중치가 0%에서 100%까지 변동하더라도 최우선 대안인 '${winnerName}'의 1위 순위는 견고하게 유지되는 것으로 나타나, 평가 결과의 구조적 안정성을 확인하였다.`;
   }
 
   const fullAcademicText = `${breakEvenSentence} 이는 본 의사결정 모델에서 '${selectedCritName}' 기준의 중요도 변화가 최종 대안 선정에 미치는 민감도와 임계치를 정량적으로 입증하는 실증적 근거가 된다.`;
@@ -205,7 +211,8 @@ export default function SensitivityAnalysis({
     try {
       const svgData = new XMLSerializer().serializeToString(svgRef.current);
       const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-      const URLObj = window.URL || window.webkitURL || window;
+      const URLObj = typeof window !== 'undefined' ? (window.URL || window.webkitURL || window) : null;
+      if (!URLObj) return;
       const blobURL = URLObj.createObjectURL(svgBlob);
 
       const image = new Image();

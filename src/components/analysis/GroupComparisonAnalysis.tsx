@@ -58,11 +58,13 @@ interface GroupComparisonAnalysisProps {
 
 export default function GroupComparisonAnalysis({
   survey,
-  responses,
+  responses = [],
 }: GroupComparisonAnalysisProps) {
-  const demographics = survey.demographics || [];
-  const criteria = survey.criteria || [];
+  const demographics = survey?.demographics || [];
+  const criteria = survey?.criteria || [];
   const criteriaIds = criteria.map(c => c.id);
+
+  const isValidData = Boolean(demographics.length > 0 && responses.length >= 2);
 
   const [selectedDemoId, setSelectedDemoId] = useState<string>(
     demographics[0]?.id || ''
@@ -72,32 +74,18 @@ export default function GroupComparisonAnalysis({
   const [copiedText, setCopiedText] = useState<boolean>(false);
   const [copiedTable, setCopiedTable] = useState<boolean>(false);
 
-  // 기본 검증: 인적사항 문항이 없거나 응답자가 부족한 경우
-  if (demographics.length === 0 || responses.length < 2) {
-    return (
-      <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/90 shadow-sm text-center py-10">
-        <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-        <h4 className="text-sm font-bold text-slate-800">전문가 집단별 비교 분석기 (Group Comparison)</h4>
-        <p className="text-xs text-slate-500 mt-1">
-          {demographics.length === 0
-            ? '등록된 인적사항(프로필) 문항이 없어 집단별 비교 분석을 수행할 수 없습니다.'
-            : '집단별 비교 분석을 위해 최소 2명 이상의 응답 데이터가 필요합니다.'}
-        </p>
-      </div>
-    );
-  }
-
   // 선택된 인적사항 문항의 응답 통계
   const selectedDemo = demographics.find(d => d.id === selectedDemoId) || demographics[0];
 
   const optionCounts = useMemo(() => {
+    if (!isValidData || !selectedDemo) return {};
     const counts: Record<string, number> = {};
     responses.forEach(r => {
       const val = r.demographics?.[selectedDemo.id]?.trim();
       if (val) counts[val] = (counts[val] || 0) + 1;
     });
     return counts;
-  }, [responses, selectedDemo]);
+  }, [isValidData, responses, selectedDemo]);
 
   const availableOptions = Object.keys(optionCounts);
 
@@ -111,27 +99,29 @@ export default function GroupComparisonAnalysis({
 
   // 각 집단별 응답자 필터링
   const groupAResp = useMemo(() => {
+    if (!isValidData || !selectedDemo || !activeGroupA) return [];
     return responses.filter(r => r.demographics?.[selectedDemo.id]?.trim() === activeGroupA);
-  }, [responses, selectedDemo, activeGroupA]);
+  }, [isValidData, responses, selectedDemo, activeGroupA]);
 
   const groupBResp = useMemo(() => {
+    if (!isValidData || !selectedDemo || !activeGroupB) return [];
     return responses.filter(r => r.demographics?.[selectedDemo.id]?.trim() === activeGroupB);
-  }, [responses, selectedDemo, activeGroupB]);
+  }, [isValidData, responses, selectedDemo, activeGroupB]);
 
   // 각 집단별 독립적 AHP 계산
   const ahpGroupA: AHPResult | null = useMemo(() => {
-    if (groupAResp.length === 0) return null;
-    const matrices = groupAResp.map(r => buildMatrix(criteriaIds, r.answers.criteria || {}));
+    if (!isValidData || groupAResp.length === 0) return null;
+    const matrices = groupAResp.map(r => buildMatrix(criteriaIds, r.answers?.criteria || {}));
     const agg = aggregateGroupMatrices(matrices);
     return calculateAHP(agg);
-  }, [groupAResp, criteriaIds]);
+  }, [isValidData, groupAResp, criteriaIds]);
 
   const ahpGroupB: AHPResult | null = useMemo(() => {
-    if (groupBResp.length === 0) return null;
-    const matrices = groupBResp.map(r => buildMatrix(criteriaIds, r.answers.criteria || {}));
+    if (!isValidData || groupBResp.length === 0) return null;
+    const matrices = groupBResp.map(r => buildMatrix(criteriaIds, r.answers?.criteria || {}));
     const agg = aggregateGroupMatrices(matrices);
     return calculateAHP(agg);
-  }, [groupBResp, criteriaIds]);
+  }, [isValidData, groupBResp, criteriaIds]);
 
   // 두 집단의 순위 및 가중치 비교표 데이터 구성
   const comparisonItems = useMemo(() => {
@@ -167,6 +157,21 @@ export default function GroupComparisonAnalysis({
     return list;
   }, [criteria, ahpGroupA, ahpGroupB]);
 
+  // 기본 검증: 인적사항 문항이 없거나 응답자가 부족한 경우
+  if (!isValidData || !selectedDemo) {
+    return (
+      <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/90 shadow-sm text-center py-10">
+        <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+        <h4 className="text-sm font-bold text-slate-800">전문가 집단별 비교 분석기 (Group Comparison)</h4>
+        <p className="text-xs text-slate-500 mt-1">
+          {demographics.length === 0
+            ? '등록된 인적사항(프로필) 문항이 없어 집단별 비교 분석을 수행할 수 없습니다.'
+            : '집단별 비교 분석을 위해 최소 2명 이상의 응답 데이터가 필요합니다.'}
+        </p>
+      </div>
+    );
+  }
+
   // 학술 해석 문장 생성
   const topCritA = [...comparisonItems].sort((a, b) => b.wA - a.wA)[0];
   const topCritB = [...comparisonItems].sort((a, b) => b.wB - a.wB)[0];
@@ -174,7 +179,7 @@ export default function GroupComparisonAnalysis({
 
   const rankReversals = comparisonItems.filter(item => item.rankA !== item.rankB);
 
-  const academicSentence1 = `'${selectedDemo.title}' 특성에 따른 전문가 집단별 비교 분석을 위해, 응답자를 '${activeGroupA}' 집단(N=${groupAResp.length}명)과 '${activeGroupB}' 집단(N=${groupBResp.length}명)으로 구분하여 각각 독립적인 AHP 가중치를 산출하였다.`;
+  const academicSentence1 = `'${selectedDemo.title || '인적사항'}' 특성에 따른 전문가 집단별 비교 분석을 위해, 응답자를 '${activeGroupA}' 집단(N=${groupAResp.length}명)과 '${activeGroupB}' 집단(N=${groupBResp.length}명)으로 구분하여 각각 독립적인 AHP 가중치를 산출하였다.`;
 
   let academicSentence2 = '';
   if (topCritA && topCritB) {
