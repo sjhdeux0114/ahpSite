@@ -23,7 +23,11 @@ import {
   Layers,
   Copy,
   Check,
+  Sparkles,
+  BookOpen,
 } from 'lucide-react';
+import HierarchyTreeDiagram from '@/components/thesis/HierarchyTreeDiagram';
+import ThesisReportHelper from '@/components/thesis/ThesisReportHelper';
 
 export default function SurveyAnalysisPage() {
   const params = useParams();
@@ -147,6 +151,38 @@ export default function SurveyAnalysisPage() {
     ? [...alternativeBarItems].sort((a, b) => b.weight - a.weight)[0]
     : null;
 
+  // 계층도용 criteria 데이터
+  const hierarchyCriteria = survey.criteria.map((c: any, idx: number) => {
+    const critWeight = analysis?.criteriaAHP?.weights?.[idx];
+    const subcriteria = (c.subcriteria || []).map((s: any) => {
+      const subItem = (analysis?.allSubcriteria || []).find(
+        (as: any) => as.id === s.id || (as.name === s.name && as.criterionName === c.name)
+      );
+      return {
+        id: s.id,
+        name: s.name,
+        localWeight: subItem?.localWeight,
+        globalWeight: subItem?.globalWeight,
+      };
+    });
+    return {
+      id: c.id,
+      name: c.name,
+      weight: critWeight,
+      subcriteria,
+    };
+  });
+
+  // 계층도용 alternatives 데이터
+  const hierarchyAlternatives =
+    survey.hasAlternatives && survey.alternatives
+      ? survey.alternatives.map((a: any, idx: number) => ({
+          id: a.id,
+          name: a.name,
+          weight: analysis?.finalAlternativeWeights?.alternativeWeights?.[idx],
+        }))
+      : [];
+
   return (
     <>
       <Navbar />
@@ -241,6 +277,23 @@ export default function SurveyAnalysisPage() {
             >
               <FileText className="w-4 h-4" />
               <span>Word 보고서 다운로드</span>
+            </a>
+
+            {/* Thesis Shortcut Buttons */}
+            <a
+              href="#thesis-helper-section"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition shadow-2xs"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-purple-600" />
+              <span>논문 작성 도우미</span>
+            </a>
+
+            <a
+              href="#hierarchy-tree-section"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition shadow-2xs"
+            >
+              <Layers className="w-3.5 h-3.5 text-indigo-600" />
+              <span>연구 모형도(계층도)</span>
             </a>
           </div>
         </div>
@@ -343,6 +396,17 @@ export default function SurveyAnalysisPage() {
             </div>
           </div>
         )}
+
+        {/* Section: AHP Hierarchy Tree Diagram */}
+        <div id="hierarchy-tree-section" className="mb-8 scroll-mt-6">
+          <HierarchyTreeDiagram
+            title={survey.title}
+            criteria={hierarchyCriteria}
+            alternatives={hierarchyAlternatives}
+            hasAlternatives={survey.hasAlternatives}
+            hasSubcriteria={survey.hasSubcriteria}
+          />
+        </div>
 
         {/* Charts Grid */}
         <div className="grid lg:grid-cols-2 gap-8 mb-8">
@@ -496,6 +560,15 @@ export default function SurveyAnalysisPage() {
             </div>
           </div>
         )}
+
+        {/* Section: Thesis Report Helper */}
+        <div id="thesis-helper-section" className="mb-8 scroll-mt-6">
+          <ThesisReportHelper
+            survey={survey}
+            analysis={analysis}
+            responses={responses}
+          />
+        </div>
 
         {/* Pairwise Reciprocal Matrix Table */}
         {analysis?.criteriaAHP && (
