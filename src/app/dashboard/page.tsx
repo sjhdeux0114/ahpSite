@@ -14,6 +14,7 @@ import {
   Check,
   FileSpreadsheet,
   FileText,
+  Download,
   Clock,
   Users,
   Layers,
@@ -151,13 +152,24 @@ export default function DashboardPage() {
               배포 중인 설문을 모니터링하고 실시간으로 수집된 데이터를 분석하세요.
             </p>
           </div>
-          <Link
-            href="/dashboard/surveys/new"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 shadow-sm transition self-start sm:self-auto"
-          >
-            <PlusCircle className="w-4 h-4" />
-            새 설문 만들기
-          </Link>
+          <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+            <a
+              href="/templates/ahp_survey_guide_template.md"
+              download="ahp_survey_guide_template.md"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 font-medium hover:border-indigo-400 hover:text-indigo-600 shadow-2xs transition text-sm"
+              title="AHP 설문 문서 작성 규칙 및 AI 프롬프트 템플릿(.md) 다운로드"
+            >
+              <Download className="w-4 h-4 text-indigo-600" />
+              <span>AI 설문 템플릿(.md)</span>
+            </a>
+            <Link
+              href="/dashboard/surveys/new"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 shadow-sm transition"
+            >
+              <PlusCircle className="w-4 h-4" />
+              새 설문 만들기
+            </Link>
+          </div>
         </div>
 
         {/* Stats Row */}

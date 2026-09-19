@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
+import SurveyMarkdownImporter from '@/components/ahp/SurveyMarkdownImporter';
+import { ParseSurveyResult } from '@/lib/surveyMarkdownParser';
 
 interface ItemEntry {
   id: string;
@@ -473,6 +475,47 @@ export default function NewSurveyPage() {
     }
   };
 
+  const handleImportMarkdown = (parsed: ParseSurveyResult) => {
+    if (parsed.title) setTitle(parsed.title);
+    if (parsed.description !== undefined) setDescription(parsed.description);
+
+    setHasSubcriteria(parsed.hasSubcriteria);
+
+    if (parsed.criteria && parsed.criteria.length > 0) {
+      setCriteria(
+        parsed.criteria.map(c => ({
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          subcriteria: c.subcriteria || [],
+        }))
+      );
+    }
+
+    setHasAlternatives(parsed.hasAlternatives);
+    if (parsed.alternatives && parsed.alternatives.length > 0) {
+      setAlternatives(
+        parsed.alternatives.map(a => ({
+          id: a.id,
+          name: a.name,
+          description: a.description,
+        }))
+      );
+    }
+
+    if (parsed.demographics && parsed.demographics.length > 0) {
+      setDemographics(
+        parsed.demographics.map(d => ({
+          id: d.id,
+          title: d.title,
+          type: d.type,
+          options: d.options,
+          required: d.required,
+        }))
+      );
+    }
+  };
+
   return (
     <>
       <Navbar />
@@ -482,6 +525,11 @@ export default function NewSurveyPage() {
           <p className="text-sm text-slate-600 mt-1">
             평가 기준과 대안을 등록하면 Saaty 표준 9점 척도 쌍대비교 문항이 자동으로 생성됩니다.
           </p>
+        </div>
+
+        {/* AI / Markdown Importer */}
+        <div className="mb-8">
+          <SurveyMarkdownImporter onImport={handleImportMarkdown} />
         </div>
 
         {error && (
