@@ -22,6 +22,7 @@ import {
   Filter,
   Layers,
   Copy,
+  Check,
   Sparkles,
   BookOpen,
   TrendingUp,
