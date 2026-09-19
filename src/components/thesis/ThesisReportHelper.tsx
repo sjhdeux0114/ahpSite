@@ -37,9 +37,9 @@ export default function ThesisReportHelper({
 
   // --- 통계 및 가중치 데이터 추출 ---
   const totalResp = analysis?.totalResponses || responses.length || 0;
-  const validResp = analysis?.validResponsesCount || responses.filter(r => r.isValid).length || 0;
-  const criteria = survey.criteria || [];
-  const alternatives = survey.alternatives || [];
+  const validResp = analysis?.validResponsesCount || responses.filter((r: any) => r.isValid).length || 0;
+  const criteria = Array.isArray(survey.criteria) ? survey.criteria : [];
+  const alternatives = Array.isArray(survey.alternatives) ? survey.alternatives : [];
   const hasAlternatives = survey.hasAlternatives && alternatives.length > 0;
   const hasSubcriteria = survey.hasSubcriteria || analysis?.hasSubcriteria;
 
@@ -49,7 +49,7 @@ export default function ThesisReportHelper({
       name: c.name,
       description: c.description,
       weight: analysis?.criteriaAHP?.weights?.[idx] || 0,
-      subcriteria: c.subcriteria || [],
+      subcriteria: Array.isArray(c.subcriteria) ? c.subcriteria : [],
     }))
     .sort((a: any, b: any) => b.weight - a.weight);
 
@@ -58,7 +58,9 @@ export default function ThesisReportHelper({
   const thirdCrit = criteriaList[2];
 
   // 세부영역 정렬 (전역 글로벌 가중치 기준)
-  const allSubcriteria = (analysis?.allSubcriteria || []).slice().sort((a: any, b: any) => (b.globalWeight || 0) - (a.globalWeight || 0));
+  const allSubcriteria = (Array.isArray(analysis?.allSubcriteria) ? analysis.allSubcriteria : [])
+    .slice()
+    .sort((a: any, b: any) => (b.globalWeight || 0) - (a.globalWeight || 0));
   const topSub = allSubcriteria[0];
   const secondSub = allSubcriteria[1];
   const thirdSub = allSubcriteria[2];
@@ -69,15 +71,15 @@ export default function ThesisReportHelper({
         .map((a: any, idx: number) => ({
           name: a.name,
           description: a.description,
-          weight: analysis.finalAlternativeWeights.alternativeWeights[idx] || 0,
+          weight: analysis.finalAlternativeWeights.alternativeWeights?.[idx] || 0,
         }))
         .sort((a: any, b: any) => b.weight - a.weight)
     : [];
   const topAlt = altList[0];
 
-  const compositeCR = analysis?.hasSubcriteria
-    ? analysis?.compositeCR ?? 0
-    : analysis?.criteriaAHP?.cr ?? 0;
+  const compositeCR = Number(
+    (analysis?.hasSubcriteria ? analysis?.compositeCR : analysis?.criteriaAHP?.cr) || 0
+  );
   const isConsistent = compositeCR <= 0.1;
 
   // --- 학술 해석 텍스트 조합 ---
@@ -87,7 +89,8 @@ export default function ThesisReportHelper({
     .map((c: any, i: number) => `'${c.name}'(가중치: ${(c.weight * 100).toFixed(2)}%, ${i + 1}위)`)
     .join(', ');
 
-  const paragraph2 = `1계층 대분류 평가요소의 중요도 산출 결과, ${topCrit ? `'${topCrit.name}'이(가) ${(topCrit.weight * 100).toFixed(2)}%로 가장 높은 가중치를 나타내어 최우선 고려 요인으로 도출되었다.` : ''} ${secondCrit ? `이어 '${secondCrit.name}'(${(secondCrit.weight * 100).toFixed(2)}%), ` : ''}${thirdCrit ? `'${thirdCrit.name}'(${(thirdCrit.weight * 100).toFixed(2)}%) ` : ''}순으로 중요도가 분석되었다(${critRankStr}). 대분류 행렬에 대한 일관성 비율(CR)은 ${analysis?.criteriaAHP?.cr?.toFixed(4) || '0.0000'}로 Saaty의 판단 기준인 0.10 이하를 충족하여 전문가 집단 응답의 논리적 일관성이 충분히 확보되었음을 확인하였다.`;
+  const critCR = Number(analysis?.criteriaAHP?.cr || 0);
+  const paragraph2 = `1계층 대분류 평가요소의 중요도 산출 결과, ${topCrit ? `'${topCrit.name}'이(가) ${(topCrit.weight * 100).toFixed(2)}%로 가장 높은 가중치를 나타내어 최우선 고려 요인으로 도출되었다.` : ''} ${secondCrit ? `이어 '${secondCrit.name}'(${(secondCrit.weight * 100).toFixed(2)}%), ` : ''}${thirdCrit ? `'${thirdCrit.name}'(${(thirdCrit.weight * 100).toFixed(2)}%) ` : ''}순으로 중요도가 분석되었다(${critRankStr}). 대분류 행렬에 대한 일관성 비율(CR)은 ${critCR.toFixed(4)}로 Saaty의 판단 기준인 0.10 이하를 충족하여 전문가 집단 응답의 논리적 일관성이 충분히 확보되었음을 확인하였다.`;
 
   let paragraph3 = '';
   if (hasSubcriteria && allSubcriteria.length > 0) {
@@ -208,7 +211,7 @@ export default function ThesisReportHelper({
       {activeTab === 'tables' && (
         <div className="space-y-8">
           {/* Table 1: Demographics if exist */}
-          {survey.demographics && survey.demographics.length > 0 && responses.length > 0 && (
+          {Array.isArray(survey.demographics) && survey.demographics.length > 0 && responses.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-900">

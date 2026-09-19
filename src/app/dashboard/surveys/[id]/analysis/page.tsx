@@ -124,8 +124,24 @@ export default function SurveyAnalysisPage() {
     );
   }
 
-  const { survey, analysis, responses } = data;
-  const isClosed = survey.status === 'CLOSED';
+  const { survey: rawSurvey, analysis, responses = [] } = data;
+  const isClosed = rawSurvey?.status === 'CLOSED';
+
+  const parseJsonSafe = (val: any) => {
+    if (!val) return [];
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch { return []; }
+    }
+    return [];
+  };
+
+  const survey = {
+    ...rawSurvey,
+    criteria: parseJsonSafe(rawSurvey?.criteria),
+    alternatives: parseJsonSafe(rawSurvey?.alternatives),
+    demographics: parseJsonSafe(rawSurvey?.demographics),
+  };
 
   // Criteria bar chart items
   const criteriaBarItems = survey.criteria.map((c: any, idx: number) => ({

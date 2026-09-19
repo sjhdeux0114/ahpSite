@@ -60,8 +60,16 @@ export default function GroupComparisonAnalysis({
   survey,
   responses = [],
 }: GroupComparisonAnalysisProps) {
-  const demographics = survey?.demographics || [];
-  const criteria = survey?.criteria || [];
+  const demographics: DemographicQuestion[] = Array.isArray(survey?.demographics)
+    ? survey.demographics
+    : typeof survey?.demographics === 'string'
+      ? (() => { try { return JSON.parse(survey.demographics); } catch { return []; } })()
+      : [];
+  const criteria: Criterion[] = Array.isArray(survey?.criteria)
+    ? survey.criteria
+    : typeof survey?.criteria === 'string'
+      ? (() => { try { return JSON.parse(survey.criteria); } catch { return []; } })()
+      : [];
   const criteriaIds = criteria.map(c => c.id);
 
   const isValidData = Boolean(demographics.length > 0 && responses.length >= 2);

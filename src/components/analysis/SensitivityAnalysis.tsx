@@ -48,12 +48,24 @@ const ALT_COLORS = [
 ];
 
 export default function SensitivityAnalysis({
-  criteria = [],
-  alternatives = [],
+  criteria: rawCriteria = [],
+  alternatives: rawAlternatives = [],
   criteriaWeights = [],
   alternativesAHPByCriteria = {},
   hasAlternatives = false,
 }: SensitivityAnalysisProps) {
+  const criteria: Criterion[] = Array.isArray(rawCriteria)
+    ? rawCriteria
+    : typeof rawCriteria === 'string'
+      ? (() => { try { return JSON.parse(rawCriteria); } catch { return []; } })()
+      : [];
+  const alternatives: Alternative[] = Array.isArray(rawAlternatives)
+    ? rawAlternatives
+    : typeof rawAlternatives === 'string'
+      ? (() => { try { return JSON.parse(rawAlternatives); } catch { return []; } })()
+      : [];
+  const altAHP = alternativesAHPByCriteria || {};
+
   const isValidData = Boolean(hasAlternatives && alternatives.length >= 2 && criteria.length >= 2);
 
   const [selectedCritIdx, setSelectedCritIdx] = useState<number>(0);
@@ -86,7 +98,7 @@ export default function SensitivityAnalysis({
     // 대안별 선형 함수 W_j(x) = (a_j - b_j) * x + b_j
     // a_j: 선택된 기준 하에서 대안 j의 가중치
     // b_j: 선택된 기준을 제외한 나머지 기준들 하에서의 가중치 합
-    const selectedAltWeights = alternativesAHPByCriteria[selectedCrit?.id]?.weights || [];
+    const selectedAltWeights = altAHP?.[selectedCrit?.id]?.weights || [];
 
     const lines = alternatives.map((alt, j) => {
       const a_j = selectedAltWeights[j] || 0;
@@ -95,7 +107,7 @@ export default function SensitivityAnalysis({
       criteria.forEach((c, cIdx) => {
         if (cIdx !== selectedCritIdx) {
           const w_c = criteriaWeights[cIdx] || 0;
-          const altW_c = alternativesAHPByCriteria[c.id]?.weights?.[j] || 0;
+          const altW_c = altAHP?.[c.id]?.weights?.[j] || 0;
           sumOther += w_c * altW_c;
         }
       });

@@ -10,8 +10,23 @@ interface MatrixTableProps {
   ahpResult: AHPResult;
 }
 
-export default function MatrixTable({ title, items, ahpResult }: MatrixTableProps) {
-  const { matrix, weights, lambdaMax, ci, cr, isConsistent } = ahpResult;
+export default function MatrixTable({ title, items = [], ahpResult }: MatrixTableProps) {
+  if (!ahpResult || !Array.isArray(items) || items.length === 0) {
+    return null;
+  }
+
+  const {
+    matrix = [],
+    weights = [],
+    lambdaMax = 0,
+    ci = 0,
+    cr = 0,
+    isConsistent = true,
+  } = ahpResult;
+
+  const numLambda = Number(lambdaMax || 0);
+  const numCI = Number(ci || 0);
+  const numCR = Number(cr || 0);
 
   return (
     <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
@@ -19,17 +34,17 @@ export default function MatrixTable({ title, items, ahpResult }: MatrixTableProp
         <h3 className="text-base font-bold text-slate-900">{title}</h3>
         <div className="flex items-center gap-3 text-xs">
           <span className="text-slate-500">
-            λmax: <strong>{lambdaMax.toFixed(4)}</strong>
+            λmax: <strong>{numLambda.toFixed(4)}</strong>
           </span>
           <span className="text-slate-300">|</span>
           <span className="text-slate-500">
-            CI: <strong>{ci.toFixed(4)}</strong>
+            CI: <strong>{numCI.toFixed(4)}</strong>
           </span>
           <span className="text-slate-300">|</span>
           <span className="flex items-center gap-1 font-bold">
             CR:
             <span className={isConsistent ? 'text-emerald-600' : 'text-rose-600'}>
-              {cr.toFixed(4)}
+              {numCR.toFixed(4)}
             </span>
             {isConsistent ? (
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
