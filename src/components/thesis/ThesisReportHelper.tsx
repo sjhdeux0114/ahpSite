@@ -13,18 +13,21 @@ import {
   Award,
   HelpCircle,
   ExternalLink,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface ThesisReportHelperProps {
   survey: any;
   analysis: any;
   responses: any[];
+  isLoggedIn?: boolean;
 }
 
 export default function ThesisReportHelper({
   survey,
   analysis,
   responses,
+  isLoggedIn = true,
 }: ThesisReportHelperProps) {
   const [activeTab, setActiveTab] = useState<'text' | 'tables' | 'citations'>('text');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -214,74 +217,81 @@ export default function ThesisReportHelper({
         <div className="space-y-8">
           {/* Table 1: Demographics if exist */}
           {Array.isArray(survey.demographics) && survey.demographics.length > 0 && responses.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-900">
-                  &lt;표 1&gt; 전문가 패널 인구통계학적 특성 (N = {responses.length})
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const text = survey.demographics
-                      .map((demo: any) => {
+            !isLoggedIn ? (
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-indigo-500 shrink-0" />
+                <span>개인정보 보호를 위해 비로그인 상태에서는 &lt;표 1&gt; 전문가 패널 인구통계학적 특성 표가 비공개 처리됩니다.</span>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">
+                    &lt;표 1&gt; 전문가 패널 인구통계학적 특성 (N = {responses.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = survey.demographics
+                        .map((demo: any) => {
+                          const counts: Record<string, number> = {};
+                          responses.forEach((r: any) => {
+                            const val = r.demographics?.[demo.id];
+                            if (val) counts[val] = (counts[val] || 0) + 1;
+                          });
+                          const rows = Object.entries(counts)
+                            .map(([opt, cnt]) => `${demo.title}\t${opt}\t${cnt}\t${((cnt / responses.length) * 100).toFixed(1)}%`)
+                            .join('\n');
+                          return rows;
+                        })
+                        .join('\n');
+                      handleCopy('table1', `구분\t항목\t빈도(명)\t비율(%)\n${text}`);
+                    }}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-lg transition"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    {copiedKey === 'table1' ? '복사됨!' : '표 1 한글/워드 복사'}
+                  </button>
+                </div>
+
+                {/* APA Three-Line Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left border-collapse border-t-2 border-b-2 border-slate-900 font-sans">
+                    <thead>
+                      <tr className="border-b border-slate-900 font-bold bg-slate-50/50">
+                        <th className="py-2 px-3">구분</th>
+                        <th className="py-2 px-3">세부 항목</th>
+                        <th className="py-2 px-3 text-right">빈도 (명)</th>
+                        <th className="py-2 px-3 text-right">비율 (%)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {survey.demographics.map((demo: any) => {
                         const counts: Record<string, number> = {};
                         responses.forEach((r: any) => {
                           const val = r.demographics?.[demo.id];
                           if (val) counts[val] = (counts[val] || 0) + 1;
                         });
-                        const rows = Object.entries(counts)
-                          .map(([opt, cnt]) => `${demo.title}\t${opt}\t${cnt}\t${((cnt / responses.length) * 100).toFixed(1)}%`)
-                          .join('\n');
-                        return rows;
-                      })
-                      .join('\n');
-                    handleCopy('table1', `구분\t항목\t빈도(명)\t비율(%)\n${text}`);
-                  }}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-lg transition"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  {copiedKey === 'table1' ? '복사됨!' : '표 1 한글/워드 복사'}
-                </button>
-              </div>
-
-              {/* APA Three-Line Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left border-collapse border-t-2 border-b-2 border-slate-900 font-sans">
-                  <thead>
-                    <tr className="border-b border-slate-900 font-bold bg-slate-50/50">
-                      <th className="py-2 px-3">구분</th>
-                      <th className="py-2 px-3">세부 항목</th>
-                      <th className="py-2 px-3 text-right">빈도 (명)</th>
-                      <th className="py-2 px-3 text-right">비율 (%)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {survey.demographics.map((demo: any) => {
-                      const counts: Record<string, number> = {};
-                      responses.forEach((r: any) => {
-                        const val = r.demographics?.[demo.id];
-                        if (val) counts[val] = (counts[val] || 0) + 1;
-                      });
-                      const entries = Object.entries(counts);
-                      return entries.map(([opt, cnt], i) => (
-                        <tr key={`${demo.id}-${opt}`}>
-                          {i === 0 ? (
-                            <td className="py-1.5 px-3 font-semibold text-slate-800" rowSpan={entries.length}>
-                              {demo.title}
+                        const entries = Object.entries(counts);
+                        return entries.map(([opt, cnt], i) => (
+                          <tr key={`${demo.id}-${opt}`}>
+                            {i === 0 ? (
+                              <td className="py-1.5 px-3 font-semibold text-slate-800" rowSpan={entries.length}>
+                                {demo.title}
+                              </td>
+                            ) : null}
+                            <td className="py-1.5 px-3 text-slate-600">{opt}</td>
+                            <td className="py-1.5 px-3 text-right font-mono text-slate-700">{cnt}</td>
+                            <td className="py-1.5 px-3 text-right font-mono font-medium text-slate-900">
+                              {((cnt / responses.length) * 100).toFixed(1)}%
                             </td>
-                          ) : null}
-                          <td className="py-1.5 px-3 text-slate-600">{opt}</td>
-                          <td className="py-1.5 px-3 text-right font-mono text-slate-700">{cnt}</td>
-                          <td className="py-1.5 px-3 text-right font-mono font-medium text-slate-900">
-                            {((cnt / responses.length) * 100).toFixed(1)}%
-                          </td>
-                        </tr>
-                      ));
-                    })}
-                  </tbody>
-                </table>
+                          </tr>
+                        ));
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )
           )}
 
           {/* Table 2: AHP Hierarchical Weights and Consistency Table */}

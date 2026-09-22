@@ -13,12 +13,12 @@ import {
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { slug: string } }
 ) {
   const user = await getCurrentUser();
 
   const survey = await prisma.survey.findUnique({
-    where: { id: params.id },
+    where: { slug: params.slug },
     include: {
       responses: {
         orderBy: { createdAt: 'desc' },
@@ -37,7 +37,7 @@ export async function GET(
   const onlyValid = searchParams.get('onlyValid') === 'true';
 
   const threshold = survey.consistencyThreshold ?? 0.1;
-  const criteria: Array<{ id: string; name: string; description?: string }> = JSON.parse(survey.criteria || '[]');
+  const criteria: Array<{ id: string; name: string; description?: string; subcriteria?: Array<{ id: string; name: string; description?: string }> }> = JSON.parse(survey.criteria || '[]');
   const alternatives: Array<{ id: string; name: string; description?: string }> = JSON.parse(survey.alternatives || '[]');
   const demographics: Array<any> = JSON.parse(survey.demographics || '[]');
   const criteriaIds = criteria.map(c => c.id);
@@ -66,7 +66,6 @@ export async function GET(
       answers,
     };
   });
-
 
   // Filter if requested
   const targetResponses = onlyValid
@@ -214,35 +213,4 @@ export async function GET(
     },
     responses: parsedResponses,
   });
-}
-
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const responseId = searchParams.get('responseId');
-  if (!responseId) {
-    return NextResponse.json({ error: 'responseId가 필요합니다.' }, { status: 400 });
-  }
-
-  const survey = await prisma.survey.findUnique({ where: { id: params.id } });
-  if (!survey || (survey.userId !== user.id && user.role !== 'ADMIN')) {
-    return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
-  }
-
-  try {
-    await prisma.response.delete({
-      where: { id: responseId },
-    });
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error('Delete response error:', err);
-    return NextResponse.json({ error: '응답 삭제 중 오류가 발생했습니다.' }, { status: 500 });
-  }
 }

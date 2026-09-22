@@ -5,9 +5,9 @@ import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import SurveyAnalysisView from '@/components/analysis/SurveyAnalysisView';
 
-export default function SurveyAnalysisPage() {
+export default function PublicSurveyAnalysisPage() {
   const params = useParams();
-  const id = params?.id as string;
+  const slug = params?.slug as string;
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -16,7 +16,7 @@ export default function SurveyAnalysisPage() {
 
   const fetchData = async (filterValid: boolean) => {
     try {
-      const res = await fetch(`/api/surveys/${id}/responses?onlyValid=${filterValid}`);
+      const res = await fetch(`/api/public/survey/${slug}/analysis?onlyValid=${filterValid}`);
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -32,18 +32,18 @@ export default function SurveyAnalysisPage() {
   };
 
   useEffect(() => {
-    if (id) {
+    if (slug) {
       fetchData(onlyValid);
     }
-  }, [id, onlyValid]);
+  }, [slug, onlyValid]);
 
   const handleToggleStatus = async () => {
-    if (!data?.survey) return;
+    if (!data?.survey?.id) return;
     const nextStatus = data.survey.status === 'ACTIVE' ? 'CLOSED' : 'ACTIVE';
     setStatusLoading(true);
 
     try {
-      const res = await fetch(`/api/surveys/${id}`, {
+      const res = await fetch(`/api/surveys/${data.survey.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus }),
@@ -70,9 +70,10 @@ export default function SurveyAnalysisPage() {
         onlyValid={onlyValid}
         setOnlyValid={setOnlyValid}
         statusLoading={statusLoading}
-        onToggleStatus={handleToggleStatus}
-        backHref="/dashboard"
-        backLabel="대시보드로 돌아가기"
+        onToggleStatus={data?.isOwner ? handleToggleStatus : undefined}
+        isPublicPage={true}
+        backHref={data?.isOwner ? '/dashboard' : '/'}
+        backLabel={data?.isOwner ? '대시보드로 돌아가기' : '홈으로 이동'}
       />
     </>
   );

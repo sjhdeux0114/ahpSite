@@ -41,6 +41,7 @@ export default function DashboardPage() {
   const [surveys, setSurveys] = useState<SurveyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const [copiedShareSlug, setCopiedShareSlug] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const fetchSurveys = async () => {
@@ -72,6 +73,13 @@ export default function DashboardPage() {
     navigator.clipboard.writeText(url);
     setCopiedSlug(slug);
     setTimeout(() => setCopiedSlug(null), 2500);
+  };
+
+  const handleCopyShareLink = (slug: string) => {
+    const url = `${window.location.origin}/s/${slug}/analysis`;
+    navigator.clipboard.writeText(url);
+    setCopiedShareSlug(slug);
+    setTimeout(() => setCopiedShareSlug(null), 2500);
   };
 
   const handleToggleStatus = async (survey: SurveyItem) => {
@@ -282,10 +290,10 @@ export default function DashboardPage() {
 
                   {/* Actions */}
                   <div className="flex flex-wrap items-center gap-2 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
-                    {/* Share Link Copy */}
+                    {/* Survey Link Copy */}
                     <button
                       onClick={() => handleCopyLink(survey.slug)}
-                      title="설문 참여 링크 복사"
+                      title="설문 응답 참여 링크 복사"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition"
                     >
                       {copiedSlug === survey.slug ? (
@@ -296,7 +304,26 @@ export default function DashboardPage() {
                       ) : (
                         <>
                           <Copy className="w-3.5 h-3.5" />
-                          <span>링크 복사</span>
+                          <span>설문 링크</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* Result Analysis Share Link Copy */}
+                    <button
+                      onClick={() => handleCopyShareLink(survey.slug)}
+                      title="AHP 결과 분석 그래프 공개 공유 링크 복사 (비로그인 열람 가능)"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition"
+                    >
+                      {copiedShareSlug === survey.slug ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-600">결과링크 복사됨!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>결과 공유</span>
                         </>
                       )}
                     </button>
