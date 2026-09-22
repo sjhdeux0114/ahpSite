@@ -20,6 +20,7 @@ import {
   Layers,
   AlertCircle,
   ShieldCheck,
+  Pencil,
 } from 'lucide-react';
 
 interface SurveyItem {
@@ -323,6 +324,26 @@ export default function DashboardPage() {
                         </>
                       )}
                     </button>
+
+                    {/* Edit Survey */}
+                    <Link
+                      href={`/dashboard/surveys/${survey.id}/edit`}
+                      title="설문 수정"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>설문 수정</span>
+                    </Link>
+
+                    {/* Responses List & Demographics */}
+                    <Link
+                      href={`/dashboard/surveys/${survey.id}/responses`}
+                      title="응답자 목록 및 인적사항 확인"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50/70 hover:bg-blue-100/80 text-blue-700 text-xs font-semibold transition"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span>응답 목록 ({survey.responseCount})</span>
+                    </Link>
 
                     {/* Analysis Dashboard */}
                     <Link

@@ -52,14 +52,36 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const { status, title, description } = body;
+    const { status, title, description, criteria, alternatives, hasAlternatives, demographics } = body;
+
+    if (title !== undefined && !title.trim()) {
+      return NextResponse.json({ error: '설문 제목을 입력해주세요.' }, { status: 400 });
+    }
+
+    if (criteria !== undefined && (!Array.isArray(criteria) || criteria.length < 2)) {
+      return NextResponse.json(
+        { error: 'AHP 분석을 위해 최소 2개 이상의 평가 기준(대분류)이 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    if (hasAlternatives && alternatives !== undefined && (!Array.isArray(alternatives) || alternatives.length < 2)) {
+      return NextResponse.json(
+        { error: '대안 평가를 포함할 경우 최소 2개 이상의 대안이 필요합니다.' },
+        { status: 400 }
+      );
+    }
 
     const updated = await prisma.survey.update({
       where: { id: params.id },
       data: {
         ...(status !== undefined && { status }),
-        ...(title !== undefined && { title }),
+        ...(title !== undefined && { title: title.trim() }),
         ...(description !== undefined && { description }),
+        ...(hasAlternatives !== undefined && { hasAlternatives: Boolean(hasAlternatives) }),
+        ...(criteria !== undefined && { criteria: JSON.stringify(criteria) }),
+        ...(alternatives !== undefined && { alternatives: JSON.stringify(alternatives) }),
+        ...(demographics !== undefined && { demographics: JSON.stringify(demographics) }),
       },
     });
 
@@ -69,6 +91,7 @@ export async function PATCH(
         ...updated,
         criteria: JSON.parse(updated.criteria || '[]'),
         alternatives: JSON.parse(updated.alternatives || '[]'),
+        demographics: JSON.parse(updated.demographics || '[]'),
       },
     });
   } catch (err: any) {

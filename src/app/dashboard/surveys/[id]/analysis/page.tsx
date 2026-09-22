@@ -27,6 +27,7 @@ import {
   BookOpen,
   TrendingUp,
   GitCompare,
+  Pencil,
 } from 'lucide-react';
 import HierarchyTreeDiagram from '@/components/thesis/HierarchyTreeDiagram';
 import ThesisReportHelper from '@/components/thesis/ThesisReportHelper';
@@ -256,6 +257,15 @@ export default function SurveyAnalysisPage() {
               )}
             </button>
 
+            {/* Edit Survey */}
+            <Link
+              href={`/dashboard/surveys/${id}/edit`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+            >
+              <Pencil className="w-3.5 h-3.5 text-indigo-600" />
+              <span>설문 수정</span>
+            </Link>
+
             {/* Toggle Status */}
             <button
               onClick={handleToggleStatus}
@@ -278,6 +288,15 @@ export default function SurveyAnalysisPage() {
                 </>
               )}
             </button>
+
+            {/* View Responses & Demographics */}
+            <Link
+              href={`/dashboard/surveys/${id}/responses`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold shadow-xs transition"
+            >
+              <Users className="w-4 h-4" />
+              <span>응답자 목록 및 인적사항</span>
+            </Link>
 
             {/* Excel Download */}
             <a
@@ -679,13 +698,27 @@ export default function SurveyAnalysisPage() {
 
         {/* Individual Respondents Table */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-bold text-slate-900">
-              응답자별 데이터 및 일관성 검증 내역
-            </h3>
-            <span className="text-xs text-slate-500 font-medium">
-              총 {responses.length}명 참여
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                응답자별 데이터 및 일관성 검증 내역
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                응답자의 인적사항 및 개별 쌍대비교 답변 내역을 확인할 수 있습니다.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-500 font-medium">
+                총 {responses.length}명 참여
+              </span>
+              <Link
+                href={`/dashboard/surveys/${id}/responses`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>응답 전체 관리 / 인적사항 확인 →</span>
+              </Link>
+            </div>
           </div>
 
           {responses.length === 0 ? (
@@ -708,6 +741,7 @@ export default function SurveyAnalysisPage() {
                     <th className="py-2.5 px-3 font-semibold">응답 일시</th>
                     <th className="py-2.5 px-3 font-semibold text-right">기준 CR</th>
                     <th className="py-2.5 px-3 font-semibold text-center">신뢰도 통과 여부</th>
+                    <th className="py-2.5 px-3 font-semibold text-center">상세보기</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -737,6 +771,14 @@ export default function SurveyAnalysisPage() {
                         >
                           {resp.isValid ? '적합 (CR ≤ 0.1)' : '부적합 (CR > 0.1)'}
                         </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <Link
+                          href={`/dashboard/surveys/${id}/responses?selectedId=${resp.id}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition"
+                        >
+                          상세보기
+                        </Link>
                       </td>
                     </tr>
                   ))}

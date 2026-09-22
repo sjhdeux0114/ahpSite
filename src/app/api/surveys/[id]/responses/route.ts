@@ -58,6 +58,8 @@ export async function GET(
       createdAt: r.createdAt,
       isValid: r.isValid,
       criteriaCR: crResults.criteriaCR ?? 0,
+      criteriaCI: crResults.criteriaCI ?? 0,
+      subcriteriaCR: crResults.subcriteriaCR ?? {},
       alternativesCR: crResults.alternativesCR ?? {},
       demographics: demographicAnswers,
       answers,
@@ -205,4 +207,35 @@ export async function GET(
     },
     responses: parsedResponses,
   });
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const responseId = searchParams.get('responseId');
+  if (!responseId) {
+    return NextResponse.json({ error: 'responseId가 필요합니다.' }, { status: 400 });
+  }
+
+  const survey = await prisma.survey.findUnique({ where: { id: params.id } });
+  if (!survey || survey.userId !== user.id) {
+    return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+  }
+
+  try {
+    await prisma.response.delete({
+      where: { id: responseId },
+    });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('Delete response error:', err);
+    return NextResponse.json({ error: '응답 삭제 중 오류가 발생했습니다.' }, { status: 500 });
+  }
 }
