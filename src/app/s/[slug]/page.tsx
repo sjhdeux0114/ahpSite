@@ -50,6 +50,7 @@ interface SurveyData {
   hasAlternatives: boolean;
   hasSubcriteria?: boolean;
   demographics?: DemographicQuestion[];
+  consistencyThreshold?: number;
 }
 
 export type StepType = 'intro' | 'criteria' | 'subcriteria' | 'alternatives' | 'review';
@@ -200,11 +201,13 @@ export default function PublicSurveyPage() {
     submitted,
   ]);
 
+  const threshold = survey?.consistencyThreshold ?? 0.1;
+
   // Real-time consistency calculation for criteria
   const criteriaConsistency = useMemo(() => {
     if (!survey || !survey.criteria) return null;
-    return checkRealtimeConsistency(survey.criteria, criteriaAnswers);
-  }, [survey, criteriaAnswers]);
+    return checkRealtimeConsistency(survey.criteria, criteriaAnswers, threshold);
+  }, [survey, criteriaAnswers, threshold]);
 
   // Real-time consistency for all subcriteria matrices
   const subConsistencies = useMemo(() => {
@@ -213,11 +216,11 @@ export default function PublicSurveyPage() {
     survey.criteria.forEach(crit => {
       const subs = crit.subcriteria || [];
       if (subs.length >= 2) {
-        map[crit.id] = checkRealtimeConsistency(subs, subAnswers[crit.id] || {});
+        map[crit.id] = checkRealtimeConsistency(subs, subAnswers[crit.id] || {}, threshold);
       }
     });
     return map;
-  }, [survey, subAnswers]);
+  }, [survey, subAnswers, threshold]);
 
   // Real-time consistency for all alternative matrices
   const altConsistencies = useMemo(() => {
@@ -226,10 +229,10 @@ export default function PublicSurveyPage() {
     }
     const map: Record<string, RealtimeConsistencyCheck> = {};
     survey.criteria.forEach(crit => {
-      map[crit.id] = checkRealtimeConsistency(survey.alternatives, altAnswers[crit.id] || {});
+      map[crit.id] = checkRealtimeConsistency(survey.alternatives, altAnswers[crit.id] || {}, threshold);
     });
     return map;
-  }, [survey, altAnswers]);
+  }, [survey, altAnswers, threshold]);
 
   // Criteria with at least 2 subcriteria
   const criteriaWithSub = useMemo(() => {
@@ -593,8 +596,8 @@ export default function PublicSurveyPage() {
     if (stepError) setStepError('');
 
     if (survey) {
-      const check = checkRealtimeConsistency(survey.criteria, updated);
-      const isSevere = check.triadViolations.length > 0 || (check.cr > 0.10 && check.answeredPairs >= 3);
+      const check = checkRealtimeConsistency(survey.criteria, updated, threshold);
+      const isSevere = check.triadViolations.length > 0 || (check.cr > threshold && check.answeredPairs >= 3);
       if (isSevere && !alertDismissedKeys.has(pairKey)) {
         setCurrentModalCheck(check);
         setModalOpen(true);
@@ -612,8 +615,8 @@ export default function PublicSurveyPage() {
 
     const crit = survey?.criteria.find(c => c.id === critId);
     if (crit && crit.subcriteria) {
-      const check = checkRealtimeConsistency(crit.subcriteria, critMap);
-      const isSevere = check.triadViolations.length > 0 || (check.cr > 0.10 && check.answeredPairs >= 3);
+      const check = checkRealtimeConsistency(crit.subcriteria, critMap, threshold);
+      const isSevere = check.triadViolations.length > 0 || (check.cr > threshold && check.answeredPairs >= 3);
       const stateKey = `sub_${critId}_${pairKey}`;
       if (isSevere && !alertDismissedKeys.has(stateKey)) {
         setCurrentModalCheck(check);
@@ -631,8 +634,8 @@ export default function PublicSurveyPage() {
     if (stepError) setStepError('');
 
     if (survey) {
-      const check = checkRealtimeConsistency(survey.alternatives, critMap);
-      const isSevere = check.triadViolations.length > 0 || (check.cr > 0.10 && check.answeredPairs >= 3);
+      const check = checkRealtimeConsistency(survey.alternatives, critMap, threshold);
+      const isSevere = check.triadViolations.length > 0 || (check.cr > threshold && check.answeredPairs >= 3);
       const stateKey = `alt_${critId}_${pairKey}`;
       if (isSevere && !alertDismissedKeys.has(stateKey)) {
         setCurrentModalCheck(check);
@@ -847,7 +850,7 @@ export default function PublicSurveyPage() {
             <div className="flex items-center justify-between text-sm pt-2">
               <span className="text-slate-600">종합 신뢰성 판정:</span>
               <span className={`font-bold ${isPassing ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {isPassing ? '✅ 신뢰 기준 충족 (CR ≤ 0.10)' : '⚠️ 일관성 주의 (CR > 0.10)'}
+                {isPassing ? `✅ 신뢰 기준 충족 (CR ≤ ${threshold.toFixed(2)})` : `⚠️ 일관성 주의 (CR > ${threshold.toFixed(2)})`}
               </span>
             </div>
           </div>
@@ -896,6 +899,7 @@ export default function PublicSurveyPage() {
           tabs={trackerTabs}
           activeTabId={activeTrackerTabId}
           onSelectTab={navigateToStepById}
+          threshold={threshold}
         />
       )}
 
@@ -1723,6 +1727,7 @@ export default function PublicSurveyPage() {
         check={currentModalCheck}
         onClose={() => setModalOpen(false)}
         onScrollToOffender={handleScrollToOffender}
+        threshold={threshold}
       />
 
       {/* Incomplete / Navigation Block Modal (Message Box) */}

@@ -17,6 +17,8 @@ import { SurveyExportData } from './excel';
 export async function generateWordReport(data: SurveyExportData): Promise<Buffer> {
   const primaryColor = '312E81';
   const tableHeaderBg = 'EEF2FF';
+  const threshold = data.consistencyThreshold ?? 0.1;
+  const thLabel = threshold.toFixed(2);
 
   // Sort criteria
   const critList = data.criteria.map((c, idx) => ({
@@ -324,7 +326,7 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
             spacing: { before: 150, after: 300 },
             children: [
               new TextRun({
-                text: `* 최대고유치(λmax): ${data.criteriaAHP.lambdaMax}, 일관성지수(CI): ${data.criteriaAHP.ci}, 일관성비율(CR): ${data.criteriaAHP.cr} (기준치 CR ≤ 0.10 충족 여부: ${data.criteriaAHP.isConsistent ? '충족 (일관성 양호)' : '초과 (주의 요망)'})`,
+                text: `* 최대고유치(λmax): ${data.criteriaAHP.lambdaMax}, 일관성지수(CI): ${data.criteriaAHP.ci}, 일관성비율(CR): ${data.criteriaAHP.cr} (기준치 CR ≤ ${thLabel} 충족 여부: ${data.criteriaAHP.isConsistent ? '충족 (일관성 양호)' : '초과 (주의 요망)'})`,
                 italics: true,
                 size: 18,
                 color: '64748B',
@@ -349,7 +351,7 @@ export async function generateWordReport(data: SurveyExportData): Promise<Buffer
                   children: [
                     new TextRun({
                       text: `* 국소 가중치(Local Weight)는 해당 대분류 내에서의 상대적 기여도(합산 100%)이며, 전역 가중치(Global Weight)는 상위 대분류 가중치와 곱하여 도출된 전체 세부영역 간의 통합 가중치입니다.\n` +
-                            `* 계층 종합 일관성 비율(Composite CR_H): ${data.compositeCR ?? '-'} (기준치 CR_H ≤ 0.10 충족 여부: ${data.isHierarchyConsistent ? '충족 (신뢰성 확보)' : '초과 (주의 요망)'})`,
+                            `* 계층 종합 일관성 비율(Composite CR_H): ${data.compositeCR ?? '-'} (기준치 CR_H ≤ ${thLabel} 충족 여부: ${data.isHierarchyConsistent ? '충족 (신뢰성 확보)' : '초과 (주의 요망)'})`,
                       italics: true,
                       size: 18,
                       color: '64748B',

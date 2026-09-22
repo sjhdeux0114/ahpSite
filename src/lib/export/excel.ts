@@ -27,6 +27,7 @@ export interface SurveyExportData {
   }>;
   compositeCR?: number;
   isHierarchyConsistent?: boolean;
+  consistencyThreshold?: number;
   alternativesAHPByCriteria?: Record<string, AHPResult>;
   finalAlternativeWeights?: {
     alternativeWeights: number[];
@@ -117,13 +118,16 @@ export async function generateExcelReport(data: SurveyExportData): Promise<Buffe
     row.getCell(1).alignment = { horizontal: 'center' };
   });
 
+  const threshold = data.consistencyThreshold ?? 0.1;
+  const thLabel = threshold.toFixed(2);
+
   wsSummary.addRow([]);
   wsSummary.addRow([
     '일관성 지표',
     `최대고유치(λmax): ${data.criteriaAHP.lambdaMax}`,
     `일관성지수(CI): ${data.criteriaAHP.ci}`,
     `일관성비율(CR): ${data.criteriaAHP.cr}`,
-    data.criteriaAHP.isConsistent ? '판정: 일관성 통과 (CR ≤ 0.10)' : '판정: 일관성 주의 (CR > 0.10)',
+    data.criteriaAHP.isConsistent ? `판정: 일관성 통과 (CR ≤ ${thLabel})` : `판정: 일관성 주의 (CR > ${thLabel})`,
   ]).font = { bold: true, color: { argb: data.criteriaAHP.isConsistent ? 'FF15803D' : 'FFB91C1C' } };
   wsSummary.addRow([]);
 
@@ -256,7 +260,7 @@ export async function generateExcelReport(data: SurveyExportData): Promise<Buffe
       ...demoValues,
       new Date(r.createdAt).toLocaleString(),
       r.criteriaCR.toFixed(4),
-      r.isValid ? '적합 (통과)' : '부적합 (CR > 0.1)',
+      r.isValid ? '적합 (통과)' : `부적합 (CR > ${thLabel})`,
     ]);
     row.eachCell(cell => { cell.border = borderStyle; });
     row.getCell(crColIndex).numFmt = '0.0000';

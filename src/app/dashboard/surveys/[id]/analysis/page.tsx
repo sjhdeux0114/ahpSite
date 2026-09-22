@@ -127,6 +127,8 @@ export default function SurveyAnalysisPage() {
 
   const { survey: rawSurvey, analysis, responses = [] } = data;
   const isClosed = rawSurvey?.status === 'CLOSED';
+  const threshold = Number(rawSurvey?.consistencyThreshold ?? 0.1);
+  const thLabel = threshold.toFixed(2);
 
   const parseJsonSafe = (val: any) => {
     if (!val) return [];
@@ -368,7 +370,7 @@ export default function SurveyAnalysisPage() {
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm">
             <div className="flex items-center justify-between text-slate-500 mb-1">
-              <span className="text-xs font-semibold uppercase tracking-wider">신뢰 응답 (CR ≤ 0.1)</span>
+              <span className="text-xs font-semibold uppercase tracking-wider">신뢰 응답 (CR ≤ {thLabel})</span>
               <ShieldCheck className="w-4 h-4 text-emerald-500" />
             </div>
             <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600">
@@ -418,7 +420,7 @@ export default function SurveyAnalysisPage() {
                 onChange={e => setOnlyValid(e.target.checked)}
                 className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
               />
-              <span>신뢰 응답(CR ≤ 0.1)만 집계</span>
+              <span>신뢰 응답(CR ≤ {thLabel})만 집계</span>
             </label>
           </div>
         </div>
@@ -769,7 +771,7 @@ export default function SurveyAnalysisPage() {
                               : 'bg-rose-50 text-rose-700 border border-rose-200'
                           }`}
                         >
-                          {resp.isValid ? '적합 (CR ≤ 0.1)' : '부적합 (CR > 0.1)'}
+                          {resp.isValid ? `적합 (CR ≤ ${thLabel})` : `부적합 (CR > ${thLabel})`}
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">

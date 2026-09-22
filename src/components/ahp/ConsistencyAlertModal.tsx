@@ -9,6 +9,7 @@ interface ConsistencyAlertModalProps {
   check: RealtimeConsistencyCheck | null;
   onClose: () => void;
   onScrollToOffender?: (pairKey: string) => void;
+  threshold?: number;
 }
 
 export default function ConsistencyAlertModal({
@@ -16,11 +17,13 @@ export default function ConsistencyAlertModal({
   check,
   onClose,
   onScrollToOffender,
+  threshold = 0.10,
 }: ConsistencyAlertModalProps) {
   if (!isOpen || !check) return null;
 
   const hasTriad = check.triadViolations.length > 0;
   const worst = check.worstInconsistency;
+  const thLabel = threshold.toFixed(2);
 
   const handleFix = () => {
     if (worst && onScrollToOffender) {
@@ -42,7 +45,7 @@ export default function ConsistencyAlertModal({
               {hasTriad ? '논리적 상충(순환 모순) 감지' : '일관성 비율(CR) 초과 경고'}
             </h3>
             <p className="text-xs text-slate-500">
-              현재 일관성 비율: <strong className="text-rose-600">{check.cr.toFixed(3)}</strong> (학술 기준치: 0.10 이하)
+              현재 일관성 비율: <strong className="text-rose-600">{check.cr.toFixed(3)}</strong> (설문 기준치: {thLabel} 이하)
             </p>
           </div>
         </div>
@@ -56,7 +59,7 @@ export default function ConsistencyAlertModal({
             </div>
           ) : (
             <p>
-              방금 선택하신 응답으로 인해 평가 문항 간의 논리적 일관성 비율(CR)이 기준치(0.10)를 초과하였습니다.
+              방금 선택하신 응답으로 인해 평가 문항 간의 논리적 일관성 비율(CR)이 설정된 허용 기준치({thLabel})를 초과하였습니다.
               AHP 분석에서 일관성이 결여되면 최종 우선순위의 신뢰도가 크게 떨어집니다.
             </p>
           )}

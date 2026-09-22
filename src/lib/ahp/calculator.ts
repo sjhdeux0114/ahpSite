@@ -82,7 +82,7 @@ export interface AHPResult {
  * Calculates priority weights and consistency ratio using the Principal Eigenvector (Power Method)
  * with Row Geometric Mean Method (RGMM) as baseline.
  */
-export function calculateAHP(matrix: number[][]): AHPResult {
+export function calculateAHP(matrix: number[][], threshold: number = 0.10): AHPResult {
   const n = matrix.length;
 
   if (n <= 1) {
@@ -166,7 +166,7 @@ export function calculateAHP(matrix: number[][]): AHPResult {
     lambdaMax: Number(lambdaMax.toFixed(4)),
     ci: Number(ci.toFixed(4)),
     cr: Number(cr.toFixed(4)),
-    isConsistent: cr <= 0.10,
+    isConsistent: cr <= threshold,
     matrix,
   };
 }
@@ -179,7 +179,8 @@ export function calculateAHP(matrix: number[][]): AHPResult {
  */
 export function calculateIncompleteAHP(
   itemIds: string[],
-  answers: PairwiseAnswerMap
+  answers: PairwiseAnswerMap,
+  threshold: number = 0.10
 ): AHPResult {
   const n = itemIds.length;
   if (n <= 1) {
@@ -305,7 +306,7 @@ export function calculateIncompleteAHP(
     lambdaMax: Number(lambdaMax.toFixed(4)),
     ci: Number(ci.toFixed(4)),
     cr: Number(cr.toFixed(4)),
-    isConsistent: cr <= 0.10,
+    isConsistent: cr <= threshold,
     matrix: standardMatrix,
   };
 }
@@ -432,11 +433,12 @@ export interface HierarchicalAHPResult {
 export function calculateHierarchicalAHP(
   criteria: HierarchyCriterionItem[],
   criteriaAnswers: PairwiseAnswerMap,
-  subcriteriaAnswersByCrit: Record<string, PairwiseAnswerMap>
+  subcriteriaAnswersByCrit: Record<string, PairwiseAnswerMap>,
+  threshold: number = 0.10
 ): HierarchicalAHPResult {
   const critIds = criteria.map(c => c.id);
   const critMatrix = buildMatrix(critIds, criteriaAnswers);
-  const criteriaAHP = calculateAHP(critMatrix);
+  const criteriaAHP = calculateAHP(critMatrix, threshold);
 
   const subcriteriaAHPByCriteria: Record<string, AHPResult> = {};
   const allSubList: Array<Omit<SubCriterionResult, 'globalRank'>> = [];
@@ -453,7 +455,7 @@ export function calculateHierarchicalAHP(
       totalSubcriteriaCount += subs.length;
       const subIds = subs.map(s => s.id);
       const subMatrix = buildMatrix(subIds, subcriteriaAnswersByCrit[crit.id] || {});
-      const subAHP = calculateAHP(subMatrix);
+      const subAHP = calculateAHP(subMatrix, threshold);
       subcriteriaAHPByCriteria[crit.id] = subAHP;
 
       const subRI = getRandomIndex(subs.length);
@@ -495,7 +497,7 @@ export function calculateHierarchicalAHP(
     compositeCI,
     compositeRI,
     compositeCR,
-    isHierarchyConsistent: compositeCR <= 0.10,
+    isHierarchyConsistent: compositeCR <= threshold,
     hasSubcriteria: totalSubcriteriaCount > 0,
   };
 }

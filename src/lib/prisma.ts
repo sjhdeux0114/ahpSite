@@ -44,11 +44,22 @@ export async function ensureDbSchema() {
         "alternatives" TEXT NOT NULL DEFAULT '[]',
         "hasAlternatives" BOOLEAN NOT NULL DEFAULT 1,
         "demographics" TEXT NOT NULL DEFAULT '[]',
+        "consistencyThreshold" REAL NOT NULL DEFAULT 0.1,
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT "Survey_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
       );
     `);
+    // Migration: add consistencyThreshold if not exists in Survey table
+    try {
+      const surveyColumns: any = await prisma.$queryRawUnsafe(`PRAGMA table_info("Survey");`);
+      const hasThresholdCol = Array.isArray(surveyColumns) && surveyColumns.some((col: any) => col.name === 'consistencyThreshold');
+      if (!hasThresholdCol) {
+        await prisma.$executeRawUnsafe(`ALTER TABLE "Survey" ADD COLUMN "consistencyThreshold" REAL DEFAULT 0.1;`);
+      }
+    } catch {
+      // ignore if migration check fails or column already exists
+    }
     await prisma.$executeRawUnsafe(`
       CREATE UNIQUE INDEX IF NOT EXISTS "Survey_slug_key" ON "Survey"("slug");
     `);

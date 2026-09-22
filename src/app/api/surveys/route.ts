@@ -33,6 +33,7 @@ export async function GET() {
     criteria: JSON.parse(s.criteria || '[]'),
     alternatives: JSON.parse(s.alternatives || '[]'),
     demographics: JSON.parse(s.demographics || '[]'),
+    consistencyThreshold: s.consistencyThreshold ?? 0.1,
     responseCount: s._count.responses,
   }));
 
@@ -48,6 +49,12 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { title, description, criteria, alternatives, hasAlternatives, demographics } = body;
+
+    const rawThreshold = Number(body.consistencyThreshold);
+    const consistencyThreshold =
+      !isNaN(rawThreshold) && rawThreshold > 0 && rawThreshold <= 0.5
+        ? Number(rawThreshold.toFixed(4))
+        : 0.1;
 
     if (!title || !criteria || criteria.length < 2) {
       return NextResponse.json(
@@ -82,9 +89,9 @@ export async function POST(request: Request) {
         criteria: JSON.stringify(criteria),
         alternatives: JSON.stringify(alternatives || []),
         demographics: JSON.stringify(demographics || []),
+        consistencyThreshold,
       },
     });
-
 
     return NextResponse.json({ success: true, survey });
   } catch (err: any) {

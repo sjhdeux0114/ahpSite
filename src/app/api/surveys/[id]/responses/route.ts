@@ -36,6 +36,7 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const onlyValid = searchParams.get('onlyValid') === 'true';
 
+  const threshold = survey.consistencyThreshold ?? 0.1;
   const criteria: Array<{ id: string; name: string; description?: string }> = JSON.parse(survey.criteria || '[]');
   const alternatives: Array<{ id: string; name: string; description?: string }> = JSON.parse(survey.alternatives || '[]');
   const demographics: Array<any> = JSON.parse(survey.demographics || '[]');
@@ -75,7 +76,7 @@ export async function GET(
   // If no responses, return empty baseline
   if (targetResponses.length === 0) {
     const emptyCriteriaMatrix = buildMatrix(criteriaIds, {});
-    const emptyCriteriaAHP = calculateAHP(emptyCriteriaMatrix);
+    const emptyCriteriaAHP = calculateAHP(emptyCriteriaMatrix, threshold);
 
     return NextResponse.json({
       survey: {
@@ -83,6 +84,7 @@ export async function GET(
         criteria,
         alternatives,
         demographics,
+        consistencyThreshold: threshold,
       },
       analysis: {
         totalResponses: parsedResponses.length,
@@ -108,7 +110,7 @@ export async function GET(
     buildMatrix(criteriaIds, r.answers.criteria || {})
   );
   const groupCritMatrix = aggregateGroupMatrices(individualCritMatrices);
-  const criteriaAHP = calculateAHP(groupCritMatrix);
+  const criteriaAHP = calculateAHP(groupCritMatrix, threshold);
 
   // 1-B. Group Subcriteria Matrix Aggregation (per criterion)
   const subcriteriaAHPByCriteria: Record<string, AHPResult> = {};
@@ -128,7 +130,7 @@ export async function GET(
         buildMatrix(subIds, r.answers.subcriteria?.[crit.id] || {})
       );
       const groupSubMatrix = aggregateGroupMatrices(individualSubMatrices);
-      const subAHP = calculateAHP(groupSubMatrix);
+      const subAHP = calculateAHP(groupSubMatrix, threshold);
       subcriteriaAHPByCriteria[crit.id] = subAHP;
 
       const subRI = getRandomIndex(subs.length);
@@ -174,7 +176,7 @@ export async function GET(
         buildMatrix(altIds, r.answers.alternatives?.[crit.id] || {})
       );
       const groupAltMatrix = aggregateGroupMatrices(individualAltMatrices);
-      const altAHP = calculateAHP(groupAltMatrix);
+      const altAHP = calculateAHP(groupAltMatrix, threshold);
       alternativesAHPByCriteria[crit.id] = altAHP;
       altWeightsByCriteria.push(altAHP.weights);
     }
@@ -188,6 +190,7 @@ export async function GET(
       criteria,
       alternatives,
       demographics,
+      consistencyThreshold: threshold,
     },
 
     analysis: {
@@ -200,7 +203,7 @@ export async function GET(
       compositeCI,
       compositeRI,
       compositeCR,
-      isHierarchyConsistent: compositeCR <= 0.10,
+      isHierarchyConsistent: compositeCR <= threshold,
       hasSubcriteria: hasAnySubcriteria,
       alternativesAHPByCriteria,
       finalAlternativeWeights,

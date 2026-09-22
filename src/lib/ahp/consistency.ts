@@ -41,7 +41,8 @@ export interface RealtimeConsistencyCheck {
  */
 export function checkRealtimeConsistency(
   items: ItemInfo[],
-  answers: PairwiseAnswerMap
+  answers: PairwiseAnswerMap,
+  threshold: number = 0.10
 ): RealtimeConsistencyCheck {
   const n = items.length;
   const totalPairs = (n * (n - 1)) / 2;
@@ -106,10 +107,10 @@ export function checkRealtimeConsistency(
 
   if (isComplete) {
     const matrix = buildMatrix(items.map(it => it.id), answers);
-    ahpResult = calculateAHP(matrix);
+    ahpResult = calculateAHP(matrix, threshold);
     cr = ahpResult.cr;
   } else {
-    ahpResult = calculateIncompleteAHP(items.map(it => it.id), answers);
+    ahpResult = calculateIncompleteAHP(items.map(it => it.id), answers, threshold);
     cr = ahpResult.cr;
   }
 
@@ -119,18 +120,18 @@ export function checkRealtimeConsistency(
     // Fewer than 3 pairs answered: no cycles exist, perfect consistency by definition
     status = 'EXCELLENT';
     cr = 0.0;
-  } else if (cr > 0.15) {
+  } else if (cr > threshold * 1.5) {
     status = 'CRITICAL';
-  } else if (cr > 0.10) {
+  } else if (cr > threshold) {
     status = 'CAUTION';
-  } else if (cr > 0.05) {
+  } else if (cr > threshold * 0.5) {
     status = 'GOOD';
   }
 
 
-  // 3. Find worst inconsistent comparison (if CR > 0.10 and multiple answered)
+  // 3. Find worst inconsistent comparison (if CR > threshold and multiple answered)
   let worstInconsistency: WorstInconsistency | null = null;
-  if (cr > 0.10 && answeredCount >= 3) {
+  if (cr > threshold && answeredCount >= 3) {
     let maxDiscrepancy = 0;
     let worstPair: { i: number; j: number; aij: number; ratio: number } | null = null;
 
@@ -181,17 +182,18 @@ export function checkRealtimeConsistency(
   }
 
   // Summary message
+  const thFormatted = threshold.toFixed(2);
   let message = '';
   if (triadViolations.length > 0) {
     message = `⚠️ 논리적 순환 모순이 감지되었습니다 (${triadViolations.length}건). 선택 항목을 재검토해 주세요.`;
-  } else if (cr <= 0.05) {
-    message = '✨ 응답의 일관성이 매우 우수합니다 (CR ≤ 0.05).';
-  } else if (cr <= 0.10) {
-    message = '✅ 일관성이 양호한 기준치 범위 내에 있습니다 (CR ≤ 0.10).';
-  } else if (cr <= 0.15) {
-    message = `⚠️ 일관성 비율(CR: ${cr})이 기준치(0.10)를 약간 초과했습니다. 문항을 재확인하시면 더 신뢰도 높은 결과가 됩니다.`;
+  } else if (cr <= threshold * 0.5) {
+    message = `✨ 응답의 일관성이 매우 우수합니다 (CR ≤ ${(threshold * 0.5).toFixed(2)}).`;
+  } else if (cr <= threshold) {
+    message = `✅ 일관성이 양호한 기준치 범위 내에 있습니다 (CR ≤ ${thFormatted}).`;
+  } else if (cr <= threshold * 1.5) {
+    message = `⚠️ 일관성 비율(CR: ${cr})이 기준치(${thFormatted})를 약간 초과했습니다. 문항을 재확인하시면 더 신뢰도 높은 결과가 됩니다.`;
   } else {
-    message = `🚨 일관성 비율(CR: ${cr})이 기준치(0.10)를 크게 벗어났습니다. 상충되는 답변을 수정해 주시기 바랍니다.`;
+    message = `🚨 일관성 비율(CR: ${cr})이 기준치(${thFormatted})를 크게 벗어났습니다. 상충되는 답변을 수정해 주시기 바랍니다.`;
   }
 
   return {
@@ -200,7 +202,7 @@ export function checkRealtimeConsistency(
     isComplete,
     cr,
     status,
-    isAcceptable: cr <= 0.10,
+    isAcceptable: cr <= threshold,
     triadViolations,
     worstInconsistency,
     message,

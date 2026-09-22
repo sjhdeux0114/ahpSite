@@ -80,17 +80,19 @@ export default function ThesisReportHelper({
   const compositeCR = Number(
     (analysis?.hasSubcriteria ? analysis?.compositeCR : analysis?.criteriaAHP?.cr) || 0
   );
-  const isConsistent = compositeCR <= 0.1;
+  const threshold = Number(survey?.consistencyThreshold ?? 0.1);
+  const thLabel = threshold.toFixed(2);
+  const isConsistent = compositeCR <= threshold;
 
   // --- 학술 해석 텍스트 조합 ---
-  const paragraph1 = `본 연구는 '${survey.title}'을(를) 목적으로 관련 분야 전문가 총 ${totalResp}명을 대상으로 AHP(계층화 분석법, Analytic Hierarchy Process) 설문 조사를 실시하였다. 수집된 설문 응답 중 Saaty(1980)가 제안한 일관성 비율(CR ≤ 0.10) 기준을 충족한 유효 응답 ${validResp}부(${totalResp > 0 ? ((validResp / totalResp) * 100).toFixed(1) : 0}%)를 최종 실증분석에 활용하였다. 전문가 집단의 개별 쌍대비교 판단치는 역수 행렬의 성질을 만족하도록 기하평균(Geometric Mean)을 적용하여 종합 통합 행렬을 구성하였다.`;
+  const paragraph1 = `본 연구는 '${survey.title}'을(를) 목적으로 관련 분야 전문가 총 ${totalResp}명을 대상으로 AHP(계층화 분석법, Analytic Hierarchy Process) 설문 조사를 실시하였다. 수집된 설문 응답 중 일관성 비율(CR ≤ ${thLabel}) 기준을 충족한 유효 응답 ${validResp}부(${totalResp > 0 ? ((validResp / totalResp) * 100).toFixed(1) : 0}%)를 최종 실증분석에 활용하였다. 전문가 집단의 개별 쌍대비교 판단치는 역수 행렬의 성질을 만족하도록 기하평균(Geometric Mean)을 적용하여 종합 통합 행렬을 구성하였다.`;
 
   const critRankStr = criteriaList
     .map((c: any, i: number) => `'${c.name}'(가중치: ${(c.weight * 100).toFixed(2)}%, ${i + 1}위)`)
     .join(', ');
 
   const critCR = Number(analysis?.criteriaAHP?.cr || 0);
-  const paragraph2 = `1계층 대분류 평가요소의 중요도 산출 결과, ${topCrit ? `'${topCrit.name}'이(가) ${(topCrit.weight * 100).toFixed(2)}%로 가장 높은 가중치를 나타내어 최우선 고려 요인으로 도출되었다.` : ''} ${secondCrit ? `이어 '${secondCrit.name}'(${(secondCrit.weight * 100).toFixed(2)}%), ` : ''}${thirdCrit ? `'${thirdCrit.name}'(${(thirdCrit.weight * 100).toFixed(2)}%) ` : ''}순으로 중요도가 분석되었다(${critRankStr}). 대분류 행렬에 대한 일관성 비율(CR)은 ${critCR.toFixed(4)}로 Saaty의 판단 기준인 0.10 이하를 충족하여 전문가 집단 응답의 논리적 일관성이 충분히 확보되었음을 확인하였다.`;
+  const paragraph2 = `1계층 대분류 평가요소의 중요도 산출 결과, ${topCrit ? `'${topCrit.name}'이(가) ${(topCrit.weight * 100).toFixed(2)}%로 가장 높은 가중치를 나타내어 최우선 고려 요인으로 도출되었다.` : ''} ${secondCrit ? `이어 '${secondCrit.name}'(${(secondCrit.weight * 100).toFixed(2)}%), ` : ''}${thirdCrit ? `'${thirdCrit.name}'(${(thirdCrit.weight * 100).toFixed(2)}%) ` : ''}순으로 중요도가 분석되었다(${critRankStr}). 대분류 행렬에 대한 일관성 비율(CR)은 ${critCR.toFixed(4)}로 본 연구의 일관성 판단 기준인 ${thLabel} 이하를 충족하여 전문가 집단 응답의 논리적 일관성이 충분히 확보되었음을 확인하였다.`;
 
   let paragraph3 = '';
   if (hasSubcriteria && allSubcriteria.length > 0) {
@@ -302,7 +304,7 @@ export default function ThesisReportHelper({
                       text += `${c.name}\t${(c.weight * 100).toFixed(2)}%\t${cIdx + 1}\t-\t-\t-\t-\n`;
                     }
                   });
-                  text += `\n대분류 CR: ${analysis?.criteriaAHP?.cr?.toFixed(4) || '0.0000'}\t종합 CR: ${compositeCR.toFixed(4)}\t일관성 판정: ${isConsistent ? '적합 (CR ≤ 0.10)' : '부적합'}`;
+                  text += `\n대분류 CR: ${analysis?.criteriaAHP?.cr?.toFixed(4) || '0.0000'}\t종합 CR: ${compositeCR.toFixed(4)}\t일관성 판정: ${isConsistent ? `적합 (CR ≤ ${thLabel})` : '부적합'}`;
                   handleCopy('table2', text);
                 }}
                 className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-lg transition"
@@ -379,7 +381,7 @@ export default function ThesisReportHelper({
                     <td colSpan={hasSubcriteria ? 7 : 3} className="py-2 px-3">
                       * 일관성 비율: 대분류 CR = {analysis?.criteriaAHP?.cr?.toFixed(4) || '0.0000'}
                       {hasSubcriteria && ` | 계층 종합 CR = ${compositeCR.toFixed(4)}`}
-                      {' '}(판정: {isConsistent ? '만족 CR ≤ 0.10' : '불일치 CR > 0.10'})
+                      {' '}(판정: {isConsistent ? `만족 CR ≤ ${thLabel}` : `불일치 CR > ${thLabel}`})
                     </td>
                   </tr>
                 </tfoot>

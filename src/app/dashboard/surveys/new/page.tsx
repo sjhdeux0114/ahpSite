@@ -50,6 +50,7 @@ export default function NewSurveyPage() {
   const [description, setDescription] = useState('기업 경쟁력 강화를 위한 업무 솔루션 도입 시 대분류 및 세부영역별 중요도를 도출하기 위한 전문가 설문입니다.');
   const [hasSubcriteria, setHasSubcriteria] = useState(true);
   const [hasAlternatives, setHasAlternatives] = useState(true);
+  const [consistencyThreshold, setConsistencyThreshold] = useState<number>(0.1);
 
   // Criteria with subcriteria
   const [criteria, setCriteria] = useState<CriterionEntry[]>([
@@ -450,6 +451,7 @@ export default function NewSurveyPage() {
             : [],
           hasAlternatives,
           hasSubcriteria,
+          consistencyThreshold,
           demographics: demographics.map(d => ({
             id: d.id,
             title: d.title.trim(),
@@ -573,6 +575,108 @@ export default function NewSurveyPage() {
                   placeholder="응답자에게 설문의 취지와 평가 기준에 대한 배경 설명을 전달합니다."
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
+              </div>
+
+              {/* AHP Consistency Threshold Control */}
+              <div className="pt-4 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1.5">
+                  <label className="block text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                    <span>AHP 일관성 참작 기준 (CR 허용치)</span>
+                    <span className="text-[11px] font-normal text-slate-400">기본값 0.10</span>
+                  </label>
+                  <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 self-start sm:self-auto">
+                    현재 적용 기준: CR ≤ {consistencyThreshold.toFixed(2)}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                  응답자의 쌍대비교 논리적 일관성을 판정하는 기준치입니다. 학술 연구 표준은 0.10(10%) 이하이나, 항목 수가 많거나 고난도 평가인 경우 필요에 따라 0.15~0.20까지 참작 허용할 수 있습니다.
+                </p>
+
+                {/* Presets */}
+                <div className="grid sm:grid-cols-3 gap-2.5 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setConsistencyThreshold(0.1)}
+                    className={`p-3 rounded-xl border text-left transition ${
+                      consistencyThreshold === 0.1
+                        ? 'bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-400'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs font-bold text-slate-900">0.10 (표준·엄격)</span>
+                      {consistencyThreshold === 0.1 && (
+                        <span className="text-[10px] font-bold text-indigo-600 bg-white px-1.5 py-0.5 rounded border border-indigo-200">선택됨</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500">Saaty 제안 학술 표준 권장치</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setConsistencyThreshold(0.15)}
+                    className={`p-3 rounded-xl border text-left transition ${
+                      consistencyThreshold === 0.15
+                        ? 'bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-400'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs font-bold text-slate-900">0.15 (완화)</span>
+                      {consistencyThreshold === 0.15 && (
+                        <span className="text-[10px] font-bold text-indigo-600 bg-white px-1.5 py-0.5 rounded border border-indigo-200">선택됨</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500">문항 수가 많거나 실무 탐색적 조사</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setConsistencyThreshold(0.2)}
+                    className={`p-3 rounded-xl border text-left transition ${
+                      consistencyThreshold === 0.2
+                        ? 'bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-400'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs font-bold text-slate-900">0.20 (최대 참작)</span>
+                      {consistencyThreshold === 0.2 && (
+                        <span className="text-[10px] font-bold text-indigo-600 bg-white px-1.5 py-0.5 rounded border border-indigo-200">선택됨</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500">고난도 복합 평가 및 정성적 설문</p>
+                  </button>
+                </div>
+
+                {/* Slider and Manual Input */}
+                <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                  <span className="text-xs font-semibold text-slate-700 shrink-0">직접 미세조정:</span>
+                  <input
+                    type="range"
+                    min="0.05"
+                    max="0.25"
+                    step="0.01"
+                    value={consistencyThreshold}
+                    onChange={e => setConsistencyThreshold(parseFloat(e.target.value))}
+                    className="flex-1 accent-indigo-600 cursor-pointer"
+                  />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-xs text-slate-500 font-mono">CR ≤</span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      max="0.5"
+                      step="0.01"
+                      value={consistencyThreshold}
+                      onChange={e => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) setConsistencyThreshold(val);
+                      }}
+                      className="w-16 px-2 py-1 text-xs font-bold text-center bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>

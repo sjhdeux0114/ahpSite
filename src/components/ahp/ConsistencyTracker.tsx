@@ -15,25 +15,30 @@ interface ConsistencyTrackerProps {
   tabs: TrackerTab[];
   activeTabId: string;
   onSelectTab: (tabId: string) => void;
+  threshold?: number;
 }
 
 export default function ConsistencyTracker({
   tabs,
   activeTabId,
   onSelectTab,
+  threshold = 0.10,
 }: ConsistencyTrackerProps) {
   const currentTab = tabs.find(t => t.id === activeTabId) || tabs[0];
   if (!currentTab) return null;
 
   const { cr, status, triadViolations, totalPairs, answeredPairs, isAcceptable } = currentTab.check;
   const progressPercent = totalPairs > 0 ? Math.round((answeredPairs / totalPairs) * 100) : 0;
+  const thLabel = threshold.toFixed(2);
+  const goodTh = (threshold * 0.5).toFixed(2);
+  const warnTh = (threshold * 1.5).toFixed(2);
 
   // Visual style config
   let statusBadge = {
     bg: 'bg-emerald-50',
     border: 'border-emerald-200',
     text: 'text-emerald-700',
-    label: '우수 (CR ≤ 0.05)',
+    label: `우수 (CR ≤ ${goodTh})`,
     barColor: 'bg-emerald-500',
     icon: CheckCircle2,
   };
@@ -52,7 +57,7 @@ export default function ConsistencyTracker({
       bg: 'bg-blue-50',
       border: 'border-blue-200',
       text: 'text-blue-700',
-      label: '양호 (CR ≤ 0.10)',
+      label: `양호 (CR ≤ ${thLabel})`,
       barColor: 'bg-blue-500',
       icon: ShieldCheck,
     };
@@ -61,7 +66,7 @@ export default function ConsistencyTracker({
       bg: 'bg-amber-50',
       border: 'border-amber-200',
       text: 'text-amber-800',
-      label: '주의 (0.10 < CR ≤ 0.15)',
+      label: `주의 (${thLabel} < CR ≤ ${warnTh})`,
       barColor: 'bg-amber-500',
       icon: AlertTriangle,
     };
@@ -70,7 +75,7 @@ export default function ConsistencyTracker({
       bg: 'bg-rose-50',
       border: 'border-rose-200',
       text: 'text-rose-700',
-      label: '심각 (CR > 0.15)',
+      label: `심각 (CR > ${warnTh})`,
       barColor: 'bg-rose-500',
       icon: AlertOctagon,
     };

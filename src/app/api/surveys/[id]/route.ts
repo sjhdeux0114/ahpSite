@@ -30,6 +30,7 @@ export async function GET(
       criteria: JSON.parse(survey.criteria || '[]'),
       alternatives: JSON.parse(survey.alternatives || '[]'),
       demographics: JSON.parse(survey.demographics || '[]'),
+      consistencyThreshold: survey.consistencyThreshold ?? 0.1,
       responseCount: survey._count.responses,
     },
   });
@@ -52,7 +53,7 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const { status, title, description, criteria, alternatives, hasAlternatives, demographics } = body;
+    const { status, title, description, criteria, alternatives, hasAlternatives, demographics, consistencyThreshold } = body;
 
     if (title !== undefined && !title.trim()) {
       return NextResponse.json({ error: '설문 제목을 입력해주세요.' }, { status: 400 });
@@ -72,6 +73,14 @@ export async function PATCH(
       );
     }
 
+    let parsedThreshold: number | undefined = undefined;
+    if (consistencyThreshold !== undefined) {
+      const num = Number(consistencyThreshold);
+      if (!isNaN(num) && num > 0 && num <= 0.5) {
+        parsedThreshold = Number(num.toFixed(4));
+      }
+    }
+
     const updated = await prisma.survey.update({
       where: { id: params.id },
       data: {
@@ -82,8 +91,53 @@ export async function PATCH(
         ...(criteria !== undefined && { criteria: JSON.stringify(criteria) }),
         ...(alternatives !== undefined && { alternatives: JSON.stringify(alternatives) }),
         ...(demographics !== undefined && { demographics: JSON.stringify(demographics) }),
+        ...(parsedThreshold !== undefined && { consistencyThreshold: parsedThreshold }),
       },
     });
+
+    // If consistencyThreshold changed, re-evaluate existing responses' validity
+    if (parsedThreshold !== undefined) {
+      const existingResponses = await prisma.response.findMany({
+        where: { surveyId: params.id },
+      });
+
+      for (const r of existingResponses) {
+        try {
+          const crResults = JSON.parse(r.crResults || '{}');
+          const critCR = Number(crResults.criteriaCR ?? 0);
+          let isAllConsistent = critCR <= parsedThreshold;
+
+          if (crResults.subcriteriaCR && typeof crResults.subcriteriaCR === 'object') {
+            for (const val of Object.values(crResults.subcriteriaCR)) {
+              if (Number(val) > parsedThreshold) {
+                isAllConsistent = false;
+                break;
+              }
+            }
+          }
+
+          if (isAllConsistent && crResults.alternativesCR && typeof crResults.alternativesCR === 'object') {
+            for (const val of Object.values(crResults.alternativesCR)) {
+              if (Number(val) > parsedThreshold) {
+                isAllConsistent = false;
+                break;
+              }
+            }
+          }
+
+          crResults.isConsistent = isAllConsistent;
+          await prisma.response.update({
+            where: { id: r.id },
+            data: {
+              isValid: isAllConsistent,
+              crResults: JSON.stringify(crResults),
+            },
+          });
+        } catch (e) {
+          console.error('Error re-evaluating response:', e);
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -92,6 +146,7 @@ export async function PATCH(
         criteria: JSON.parse(updated.criteria || '[]'),
         alternatives: JSON.parse(updated.alternatives || '[]'),
         demographics: JSON.parse(updated.demographics || '[]'),
+        consistencyThreshold: updated.consistencyThreshold ?? 0.1,
       },
     });
   } catch (err: any) {

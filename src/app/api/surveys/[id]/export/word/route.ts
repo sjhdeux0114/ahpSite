@@ -71,14 +71,16 @@ export async function GET(
   let alternativesAHPByCriteria: Record<string, AHPResult> = {};
   let finalAlternativeWeights: { alternativeWeights: number[]; contributionMatrix: number[][] } | undefined = undefined;
 
+  const threshold = survey.consistencyThreshold ?? 0.1;
+
   if (targetResponses.length === 0) {
-    criteriaAHP = calculateAHP(buildMatrix(criteriaIds, {}));
+    criteriaAHP = calculateAHP(buildMatrix(criteriaIds, {}), threshold);
   } else {
     const individualCritMatrices = targetResponses.map(r =>
       buildMatrix(criteriaIds, r.answers.criteria || {})
     );
     const groupCritMatrix = aggregateGroupMatrices(individualCritMatrices);
-    criteriaAHP = calculateAHP(groupCritMatrix);
+    criteriaAHP = calculateAHP(groupCritMatrix, threshold);
 
     // Subcriteria Group Aggregation
     let sumWeightedCI = 0;
@@ -94,7 +96,7 @@ export async function GET(
           buildMatrix(subIds, r.answers.subcriteria?.[crit.id] || {})
         );
         const groupSubMatrix = aggregateGroupMatrices(individualSubMatrices);
-        const subAHP = calculateAHP(groupSubMatrix);
+        const subAHP = calculateAHP(groupSubMatrix, threshold);
         subcriteriaAHPByCriteria[crit.id] = subAHP;
 
         const subRI = getRandomIndex(subs.length);
@@ -135,7 +137,7 @@ export async function GET(
           buildMatrix(altIds, r.answers.alternatives?.[crit.id] || {})
         );
         const groupAltMatrix = aggregateGroupMatrices(individualAltMatrices);
-        const altAHP = calculateAHP(groupAltMatrix);
+        const altAHP = calculateAHP(groupAltMatrix, threshold);
         alternativesAHPByCriteria[crit.id] = altAHP;
         altWeightsByCriteria.push(altAHP.weights);
       }
@@ -153,6 +155,7 @@ export async function GET(
     demographics,
     hasAlternatives: survey.hasAlternatives,
     hasSubcriteria: allSubList.length > 0,
+    consistencyThreshold: threshold,
 
     totalResponses: parsedResponses.length,
     validResponses: validResponses.length,
@@ -160,7 +163,7 @@ export async function GET(
     subcriteriaAHPByCriteria,
     allSubcriteria: allSubList,
     compositeCR,
-    isHierarchyConsistent: compositeCR <= 0.10,
+    isHierarchyConsistent: compositeCR <= threshold,
     alternativesAHPByCriteria,
     finalAlternativeWeights,
     individualResponses: parsedResponses,

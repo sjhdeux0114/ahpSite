@@ -31,6 +31,7 @@ model Survey {
   alternatives    String     @default("[]")
   hasAlternatives Boolean    @default(true)
   demographics    String     @default("[]") // JSON of custom demographic questions
+  consistencyThreshold Float  @default(0.1)  // CR acceptable threshold (default: 0.1, max: 0.2+)
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
   responses       Response[]

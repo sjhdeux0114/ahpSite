@@ -57,6 +57,7 @@ interface SurveyData {
   alternatives: AlternativeItem[];
   hasAlternatives: boolean;
   demographics: DemographicQuestion[];
+  consistencyThreshold?: number;
 }
 
 interface ResponseItem {
@@ -106,6 +107,9 @@ export default function SurveyResponsesPage() {
   // Selected response for detail modal
   const [selectedResponse, setSelectedResponse] = useState<ResponseItem | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const threshold = Number(survey?.consistencyThreshold ?? 0.1);
+  const thLabel = threshold.toFixed(2);
 
   const fetchResponses = async () => {
     try {
@@ -298,7 +302,7 @@ export default function SurveyResponsesPage() {
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">적합 응답 (CR ≤ 0.10)</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">적합 응답 (CR ≤ {thLabel})</p>
               <p className="text-2xl font-bold text-emerald-600">{validCount}명</p>
             </div>
           </div>
@@ -308,7 +312,7 @@ export default function SurveyResponsesPage() {
               <AlertTriangle className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">일관성 주의 (CR &gt; 0.10)</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">일관성 주의 (CR &gt; {thLabel})</p>
               <p className="text-2xl font-bold text-amber-600">{invalidCount}명</p>
             </div>
           </div>
@@ -466,12 +470,12 @@ export default function SurveyResponsesPage() {
                           {resp.isValid ? (
                             <>
                               <CheckCircle2 className="w-3 h-3" />
-                              <span>적합 (CR ≤ 0.1)</span>
+                              <span>적합 (CR ≤ {thLabel})</span>
                             </>
                           ) : (
                             <>
                               <AlertTriangle className="w-3 h-3" />
-                              <span>주의 (CR &gt; 0.1)</span>
+                              <span>주의 (CR &gt; {thLabel})</span>
                             </>
                           )}
                         </span>
@@ -588,8 +592,8 @@ export default function SurveyResponsesPage() {
                     <strong className="text-base font-mono font-bold text-slate-900 block">
                       {selectedResponse.criteriaCR.toFixed(4)}
                     </strong>
-                    <span className={selectedResponse.criteriaCR <= 0.1 ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
-                      {selectedResponse.criteriaCR <= 0.1 ? '✅ 기준 충족' : '⚠️ 일관성 주의'}
+                    <span className={selectedResponse.criteriaCR <= threshold ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
+                      {selectedResponse.criteriaCR <= threshold ? '✅ 기준 충족' : '⚠️ 일관성 주의'}
                     </span>
                   </div>
 
@@ -603,8 +607,8 @@ export default function SurveyResponsesPage() {
                         <strong className="text-base font-mono font-bold text-slate-900 block">
                           {Number(crVal).toFixed(4)}
                         </strong>
-                        <span className={Number(crVal) <= 0.1 ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
-                          {Number(crVal) <= 0.1 ? '✅ 기준 충족' : '⚠️ 일관성 주의'}
+                        <span className={Number(crVal) <= threshold ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
+                          {Number(crVal) <= threshold ? '✅ 기준 충족' : '⚠️ 일관성 주의'}
                         </span>
                       </div>
                     );

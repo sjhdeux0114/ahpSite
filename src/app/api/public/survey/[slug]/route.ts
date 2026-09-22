@@ -18,6 +18,7 @@ export async function GET(
       alternatives: true,
       hasAlternatives: true,
       demographics: true,
+      consistencyThreshold: true,
       createdAt: true,
     },
   });
@@ -32,6 +33,7 @@ export async function GET(
       criteria: JSON.parse(survey.criteria || '[]'),
       alternatives: JSON.parse(survey.alternatives || '[]'),
       demographics: JSON.parse(survey.demographics || '[]'),
+      consistencyThreshold: survey.consistencyThreshold ?? 0.1,
     },
   });
 }
@@ -65,25 +67,26 @@ export async function POST(
       alternatives: body.alternativesAnswers || {},
     };
 
+    const threshold = survey.consistencyThreshold ?? 0.1;
     const criteria: Array<{ id: string; name: string; description?: string; subcriteria?: Array<{ id: string; name: string; description?: string }> }> = JSON.parse(survey.criteria || '[]');
     const alternatives: Array<{ id: string; name: string }> = JSON.parse(survey.alternatives || '[]');
     const criteriaIds = criteria.map(c => c.id);
     const altIds = alternatives.map(a => a.id);
 
-    // Calculate Criteria CR
+    // Calculate Criteria CR with threshold
     const criteriaMatrix = buildMatrix(criteriaIds, answers.criteria || {});
-    const criteriaAHP = calculateAHP(criteriaMatrix);
+    const criteriaAHP = calculateAHP(criteriaMatrix, threshold);
 
     let isAllConsistent = criteriaAHP.isConsistent;
     const subcriteriaCR: Record<string, number> = {};
 
-    // Calculate Subcriteria CR
+    // Calculate Subcriteria CR with threshold
     for (const crit of criteria) {
       const subs = crit.subcriteria || [];
       if (subs.length >= 2) {
         const subIds = subs.map(s => s.id);
         const subMatrix = buildMatrix(subIds, answers.subcriteria?.[crit.id] || {});
-        const subAHP = calculateAHP(subMatrix);
+        const subAHP = calculateAHP(subMatrix, threshold);
         subcriteriaCR[crit.id] = subAHP.cr;
         if (!subAHP.isConsistent) {
           isAllConsistent = false;
@@ -96,7 +99,7 @@ export async function POST(
     if (survey.hasAlternatives && alternatives.length > 0) {
       for (const crit of criteria) {
         const altMatrix = buildMatrix(altIds, answers.alternatives?.[crit.id] || {});
-        const altAHP = calculateAHP(altMatrix);
+        const altAHP = calculateAHP(altMatrix, threshold);
         alternativesCR[crit.id] = altAHP.cr;
         if (!altAHP.isConsistent) {
           isAllConsistent = false;
@@ -110,6 +113,7 @@ export async function POST(
       subcriteriaCR,
       alternativesCR,
       isConsistent: isAllConsistent,
+      consistencyThreshold: threshold,
     };
 
     const response = await prisma.response.create({
