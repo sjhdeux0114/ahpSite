@@ -99,6 +99,21 @@ export default function PublicSurveyPage() {
   // Validation / navigation error message
   const [stepError, setStepError] = useState<string>('');
 
+  // Incomplete questions alert modal (message box)
+  const [incompleteModal, setIncompleteModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    stepBadge: string;
+    reason: string;
+    detail?: string;
+    targetId?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    stepBadge: '',
+    reason: '',
+  });
+
   // Scale guide collapsible state
   const [showScaleGuide, setShowScaleGuide] = useState<boolean>(false);
 
@@ -488,20 +503,35 @@ export default function PublicSurveyPage() {
       if (survey?.demographics && survey.demographics.length > 0) {
         for (const demo of survey.demographics) {
           if (demo.required && !demographicAnswers[demo.id]) {
-            setStepError(`인적사항 중 '${demo.title}' 항목을 입력 또는 선택해 주세요.`);
+            const reason = `인적사항 필수 문항 중 '${demo.title}' 항목에 아직 응답하지 않으셨습니다.`;
+            setStepError(reason);
+            setIncompleteModal({
+              isOpen: true,
+              title: '인적사항 응답 필요',
+              stepBadge: '설문 개요 / 인적사항',
+              reason,
+              detail: '정확한 설문 분석과 통계 집계를 위해 필수 항목에 응답을 완료하셔야 다음 평가 단계로 이동하실 수 있습니다.',
+              targetId: `demo-card-${demo.id}`,
+            });
             return;
           }
         }
       }
     } else if (currentStep.type === 'criteria') {
       const answered = Object.keys(criteriaAnswers).length;
-      if (answered < criteriaPairs.length) {
-        setStepError(`1단계 대분류 비교의 모든 문항에 응답해 주세요. (미응답: ${criteriaPairs.length - answered}개)`);
-        // Find first unanswered pair and scroll to it
+      const missingCount = criteriaPairs.length - answered;
+      if (missingCount > 0) {
         const firstMissing = criteriaPairs.find(p => criteriaAnswers[p.key] === undefined);
-        if (firstMissing) {
-          document.getElementById(`pair-card-${firstMissing.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        const reason = `1단계 대분류 중요도 비교 총 ${criteriaPairs.length}개 문항 중 ${missingCount}개 문항에 아직 응답하지 않으셨습니다.`;
+        setStepError(`1단계 대분류 비교의 모든 문항에 응답해 주세요. (미응답: ${missingCount}개)`);
+        setIncompleteModal({
+          isOpen: true,
+          title: '1단계 대분류 비교 미완료',
+          stepBadge: '1단계: 평가 기준(대분류)',
+          reason,
+          detail: 'AHP 계층 분석을 위해 현재 단계의 모든 대분류 기준 쌍대비교에 응답하셔야 다음 세부영역 평가 단계로 이동하실 수 있습니다.',
+          targetId: firstMissing ? `pair-card-${firstMissing.key}` : undefined,
+        });
         return;
       }
     } else if (currentStep.type === 'subcriteria' && currentStep.criterion) {
@@ -509,24 +539,38 @@ export default function PublicSurveyPage() {
       const pairs = subPairsMap[crit.id] || [];
       const critAnswers = subAnswers[crit.id] || {};
       const answered = Object.keys(critAnswers).length;
-      if (answered < pairs.length) {
-        setStepError(`'${crit.name}' 세부영역 비교의 모든 문항에 응답해 주세요. (미응답: ${pairs.length - answered}개)`);
+      const missingCount = pairs.length - answered;
+      if (missingCount > 0) {
         const firstMissing = pairs.find(p => critAnswers[p.key] === undefined);
-        if (firstMissing) {
-          document.getElementById(`pair-card-${firstMissing.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        const reason = `'${crit.name}' 세부영역 간 비교 총 ${pairs.length}개 문항 중 ${missingCount}개 문항에 아직 응답하지 않으셨습니다.`;
+        setStepError(`'${crit.name}' 세부영역 비교의 모든 문항에 응답해 주세요. (미응답: ${missingCount}개)`);
+        setIncompleteModal({
+          isOpen: true,
+          title: `[${crit.name}] 세부영역 비교 미완료`,
+          stepBadge: currentStep.badge,
+          reason,
+          detail: `'${crit.name}' 대분류에 속한 세부영역들 간의 1:1 비교를 모두 완료하셔야 다음 단계로 이동하실 수 있습니다.`,
+          targetId: firstMissing ? `pair-card-${firstMissing.key}` : undefined,
+        });
         return;
       }
     } else if (currentStep.type === 'alternatives' && currentStep.criterion) {
       const crit = currentStep.criterion;
       const answersForCrit = altAnswers[crit.id] || {};
       const answered = Object.keys(answersForCrit).length;
-      if (answered < altPairs.length) {
-        setStepError(`'${crit.name}' 기준 대안 비교의 모든 문항에 응답해 주세요. (미응답: ${altPairs.length - answered}개)`);
+      const missingCount = altPairs.length - answered;
+      if (missingCount > 0) {
         const firstMissing = altPairs.find(p => answersForCrit[p.key] === undefined);
-        if (firstMissing) {
-          document.getElementById(`pair-card-${firstMissing.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        const reason = `'${crit.name}' 기준 대안 비교 총 ${altPairs.length}개 문항 중 ${missingCount}개 문항에 아직 응답하지 않으셨습니다.`;
+        setStepError(`'${crit.name}' 기준 대안 비교의 모든 문항에 응답해 주세요. (미응답: ${missingCount}개)`);
+        setIncompleteModal({
+          isOpen: true,
+          title: `[${crit.name}] 대안 비교 미완료`,
+          stepBadge: currentStep.badge,
+          reason,
+          detail: `'${crit.name}' 기준 관점에서의 대안 간 1:1 비교를 모두 완료하셔야 다음 단계로 이동하실 수 있습니다.`,
+          targetId: firstMissing ? `pair-card-${firstMissing.key}` : undefined,
+        });
         return;
       }
     }
@@ -612,7 +656,17 @@ export default function PublicSurveyPage() {
 
     // Check completion of criteria
     if (criteriaPairs.length > Object.keys(criteriaAnswers).length) {
-      setSubmitError('대분류 평가 기준 쌍대비교의 모든 문항에 응답해 주세요.');
+      const missingCount = criteriaPairs.length - Object.keys(criteriaAnswers).length;
+      const msg = `1단계 대분류 평가 기준 비교 총 ${criteriaPairs.length}개 문항 중 ${missingCount}개 문항에 아직 응답하지 않으셨습니다.`;
+      setSubmitError(msg);
+      setIncompleteModal({
+        isOpen: true,
+        title: '1단계 대분류 비교 미완료',
+        stepBadge: '1단계: 평가 기준(대분류)',
+        reason: msg,
+        detail: '설문 응답을 최종 제출하시려면 1단계 대분류 쌍대비교의 모든 문항에 응답하셔야 합니다.',
+        targetId: 'section-criteria',
+      });
       navigateToStepById('criteria');
       return;
     }
@@ -624,7 +678,17 @@ export default function PublicSurveyPage() {
         const expectedPairs = (subs.length * (subs.length - 1)) / 2;
         const ansCount = Object.keys(subAnswers[crit.id] || {}).length;
         if (ansCount < expectedPairs) {
-          setSubmitError(`대분류 '${crit.name}'의 하위 세부영역 쌍대비교 문항에 모두 응답해 주세요.`);
+          const missingCount = expectedPairs - ansCount;
+          const msg = `'${crit.name}' 세부영역 간 비교 총 ${expectedPairs}개 문항 중 ${missingCount}개 문항에 아직 응답하지 않으셨습니다.`;
+          setSubmitError(msg);
+          setIncompleteModal({
+            isOpen: true,
+            title: `[${crit.name}] 세부영역 비교 미완료`,
+            stepBadge: '2단계: 하위 세부영역',
+            reason: msg,
+            detail: `'${crit.name}' 대분류 하위 세부영역 비교에 모두 응답하셔야 설문을 최종 제출하실 수 있습니다.`,
+            targetId: `sub_${crit.id}`,
+          });
           navigateToStepById(`sub_${crit.id}`);
           return;
         }
@@ -636,7 +700,17 @@ export default function PublicSurveyPage() {
       for (const crit of survey.criteria) {
         const answersForCrit = altAnswers[crit.id] || {};
         if (altPairs.length > Object.keys(answersForCrit).length) {
-          setSubmitError(`'${crit.name}' 기준 하위 대안 쌍대비교 문항에 모두 응답해 주세요.`);
+          const missingCount = altPairs.length - Object.keys(answersForCrit).length;
+          const msg = `'${crit.name}' 기준 대안 비교 총 ${altPairs.length}개 문항 중 ${missingCount}개 문항에 아직 응답하지 않으셨습니다.`;
+          setSubmitError(msg);
+          setIncompleteModal({
+            isOpen: true,
+            title: `[${crit.name}] 대안 비교 미완료`,
+            stepBadge: '대안 비교',
+            reason: msg,
+            detail: `'${crit.name}' 기준 관점의 대안 간 비교에 모두 응답하셔야 설문을 최종 제출하실 수 있습니다.`,
+            targetId: `alt_${crit.id}`,
+          });
           navigateToStepById(`alt_${crit.id}`);
           return;
         }
@@ -647,7 +721,16 @@ export default function PublicSurveyPage() {
     if (survey?.demographics && survey.demographics.length > 0) {
       for (const demo of survey.demographics) {
         if (demo.required && !demographicAnswers[demo.id]) {
-          setSubmitError(`인적사항 문항 중 '${demo.title}' 항목에 응답해 주세요.`);
+          const msg = `인적사항 필수 문항 중 '${demo.title}' 항목에 아직 응답하지 않으셨습니다.`;
+          setSubmitError(msg);
+          setIncompleteModal({
+            isOpen: true,
+            title: '인적사항 응답 필요',
+            stepBadge: '설문 개요 / 인적사항',
+            reason: msg,
+            detail: '필수 인적사항 항목을 작성하셔야 설문을 최종 제출하실 수 있습니다.',
+            targetId: `demo-card-${demo.id}`,
+          });
           navigateToStepById('intro');
           return;
         }
@@ -1010,7 +1093,7 @@ export default function PublicSurveyPage() {
 
                 <div className="grid sm:grid-cols-2 gap-4">
                   {survey.demographics.map(demo => (
-                    <div key={demo.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    <div key={demo.id} id={`demo-card-${demo.id}`} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 transition-all">
                       <label className="block text-xs font-bold text-slate-800 mb-2">
                         {demo.title} {demo.required && <span className="text-rose-500">*</span>}
                       </label>
@@ -1574,8 +1657,28 @@ export default function PublicSurveyPage() {
           </div>
         )}
 
+        {/* Bottom Step Error Notice Box (right above next/prev buttons) */}
+        {stepError && (
+          <div className="w-full mt-6 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs sm:text-sm flex items-start justify-between gap-3 shadow-xs animate-shake">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block text-amber-950">다음 단계로 이동할 수 없습니다</span>
+                <span className="text-amber-800 text-xs mt-0.5 block leading-relaxed">{stepError}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStepError('')}
+              className="text-xs text-amber-700 hover:text-amber-950 font-bold px-2 py-1 rounded-lg hover:bg-amber-100 shrink-0"
+            >
+              닫기
+            </button>
+          </div>
+        )}
+
         {/* ================= STEP NAVIGATION FOOTER CONTROLS ================= */}
-        <div className="mt-8 pt-4 pb-12 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="mt-4 pt-2 pb-12 flex flex-col sm:flex-row items-center justify-between gap-3">
           {/* Previous Step Button */}
           {currentStepIndex > 0 ? (
             <button
@@ -1621,6 +1724,76 @@ export default function PublicSurveyPage() {
         onClose={() => setModalOpen(false)}
         onScrollToOffender={handleScrollToOffender}
       />
+
+      {/* Incomplete / Navigation Block Modal (Message Box) */}
+      {incompleteModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center gap-3.5 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                {incompleteModal.stepBadge && (
+                  <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider block mb-0.5">
+                    {incompleteModal.stepBadge}
+                  </span>
+                )}
+                <h3 className="text-lg font-bold text-slate-900">
+                  {incompleteModal.title}
+                </h3>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="space-y-3 mb-6">
+              <div className="p-4 bg-amber-50 border border-amber-200/90 rounded-2xl text-xs sm:text-sm text-amber-950 font-medium leading-relaxed">
+                <span className="font-bold text-amber-900 block mb-1">다음 단계 이동 불가 사유:</span>
+                {incompleteModal.reason}
+              </div>
+              {incompleteModal.detail && (
+                <p className="text-xs text-slate-500 leading-relaxed px-1">
+                  {incompleteModal.detail}
+                </p>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIncompleteModal(prev => ({ ...prev, isOpen: false }))}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs sm:text-sm font-semibold hover:bg-slate-50 transition order-2 sm:order-1"
+              >
+                닫기
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetId = incompleteModal.targetId;
+                  setIncompleteModal(prev => ({ ...prev, isOpen: false }));
+                  if (targetId) {
+                    setTimeout(() => {
+                      const el = document.getElementById(targetId);
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        el.classList.add('ring-4', 'ring-amber-400', 'ring-offset-2', 'transition-all', 'duration-500');
+                        setTimeout(() => {
+                          el.classList.remove('ring-4', 'ring-amber-400', 'ring-offset-2');
+                        }, 2500);
+                      }
+                    }, 150);
+                  }
+                }}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs sm:text-sm font-bold hover:bg-indigo-700 transition shadow-md shadow-indigo-200 order-1 sm:order-2"
+              >
+                <span>확인 (미응답 문항으로 이동)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
