@@ -185,11 +185,7 @@ export default function EditSurveyPage() {
 
   const removeSubcriterion = (critIndex: number, subIndex: number) => {
     const updated = [...criteria];
-    if (updated[critIndex].subcriteria.length <= 2) {
-      alert('세부영역 평가를 위해 해당 대분류 내 최소 2개 이상의 세부영역이 필요합니다.');
-      return;
-    }
-    updated[critIndex].subcriteria = updated[critIndex].subcriteria.filter((_, i) => i !== subIndex);
+    updated[critIndex].subcriteria = (updated[critIndex].subcriteria || []).filter((_, i) => i !== subIndex);
     setCriteria(updated);
   };
 
@@ -316,11 +312,7 @@ export default function EditSurveyPage() {
     if (hasSubcriteria) {
       for (let i = 0; i < criteria.length; i++) {
         const c = criteria[i];
-        if (!c.subcriteria || c.subcriteria.length < 2) {
-          setError(`대분류 '${c.name || `C${i + 1}`}'에 최소 2개 이상의 세부영역이 필요합니다.`);
-          return;
-        }
-        const emptySub = c.subcriteria.some(s => !s.name.trim());
+        const emptySub = (c.subcriteria || []).some(s => !s.name.trim());
         if (emptySub) {
           setError(`대분류 '${c.name}'의 모든 세부영역 이름을 입력해주세요.`);
           return;
