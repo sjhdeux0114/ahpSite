@@ -12,12 +12,14 @@ export async function GET(
       id: true,
       title: true,
       description: true,
+      surveyType: true,
       status: true,
       slug: true,
       criteria: true,
       alternatives: true,
       hasAlternatives: true,
       demographics: true,
+      formConfig: true,
       consistencyThreshold: true,
       createdAt: true,
     },
@@ -30,9 +32,11 @@ export async function GET(
   return NextResponse.json({
     survey: {
       ...survey,
+      surveyType: (survey as any).surveyType || 'AHP',
       criteria: JSON.parse(survey.criteria || '[]'),
       alternatives: JSON.parse(survey.alternatives || '[]'),
       demographics: JSON.parse(survey.demographics || '[]'),
+      formConfig: JSON.parse((survey as any).formConfig || '{}'),
       consistencyThreshold: survey.consistencyThreshold ?? 0.1,
     },
   });
@@ -61,6 +65,28 @@ export async function POST(
   try {
     const body = await request.json();
     const { respondentName, respondentEmail, demographics } = body;
+    const isForm = ((survey as any).surveyType || 'AHP') === 'FORM';
+
+    if (isForm) {
+      const formAnswers = body.answers || {};
+      const response = await prisma.response.create({
+        data: {
+          surveyId: survey.id,
+          respondentName: respondentName?.trim() || null,
+          respondentEmail: respondentEmail?.trim() || null,
+          demographics: JSON.stringify(demographics || {}),
+          answers: JSON.stringify(formAnswers),
+          crResults: JSON.stringify({}),
+          isValid: true,
+        },
+      });
+      return NextResponse.json({
+        success: true,
+        responseId: response.id,
+        surveyType: 'FORM',
+      });
+    }
+
     const answers = body.answers || {
       criteria: body.criteriaAnswers || {},
       subcriteria: body.subcriteriaAnswers || {},

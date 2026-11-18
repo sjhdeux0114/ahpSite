@@ -10,6 +10,7 @@ import {
   AHPResult,
   SubCriterionResult,
 } from '@/lib/ahp/calculator';
+import { analyzeFormResponses } from '@/lib/form/analysis';
 
 export async function GET(
   request: Request,
@@ -37,6 +38,8 @@ export async function GET(
   const onlyValid = searchParams.get('onlyValid') === 'true';
 
   const threshold = survey.consistencyThreshold ?? 0.1;
+  const surveyType = (survey as any).surveyType || 'AHP';
+  const formConfig = JSON.parse((survey as any).formConfig || '{}');
   const criteria: Array<{ id: string; name: string; description?: string }> = JSON.parse(survey.criteria || '[]');
   const alternatives: Array<{ id: string; name: string; description?: string }> = JSON.parse(survey.alternatives || '[]');
   const demographics: Array<any> = JSON.parse(survey.demographics || '[]');
@@ -67,6 +70,25 @@ export async function GET(
     };
   });
 
+
+  if (surveyType === 'FORM') {
+    const formAnalysis = analyzeFormResponses(formConfig, parsedResponses);
+    return NextResponse.json({
+      isOwner,
+      isLoggedIn,
+      survey: {
+        ...survey,
+        surveyType: 'FORM',
+        criteria: [],
+        alternatives: [],
+        demographics: [],
+        formConfig,
+        consistencyThreshold: threshold,
+      },
+      formAnalysis,
+      responses: parsedResponses,
+    });
+  }
 
   // Filter if requested
   const targetResponses = onlyValid

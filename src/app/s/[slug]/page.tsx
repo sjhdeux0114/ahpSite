@@ -10,6 +10,7 @@ import { getLeafCriteria, LeafCriterion } from '@/lib/ahp/calculator';
 import PairwiseItem, { PairItemData } from '@/components/ahp/PairwiseItem';
 import ConsistencyTracker, { TrackerTab } from '@/components/ahp/ConsistencyTracker';
 import ConsistencyAlertModal from '@/components/ahp/ConsistencyAlertModal';
+import FormSurveyRenderer from '@/components/form/FormSurveyRenderer';
 import {
   BarChart3,
   CheckCircle2,
@@ -45,12 +46,14 @@ interface SurveyData {
   id: string;
   title: string;
   description?: string;
+  surveyType?: 'AHP' | 'FORM';
   status: 'ACTIVE' | 'CLOSED' | 'DRAFT';
   criteria: CriterionData[];
   alternatives: PairItemData[];
   hasAlternatives: boolean;
   hasSubcriteria?: boolean;
   demographics?: DemographicQuestion[];
+  formConfig?: any;
   consistencyThreshold?: number;
 }
 
@@ -866,6 +869,22 @@ export default function PublicSurveyPage() {
           <div className="text-xs text-slate-400">AHP Decision Hub Powered by Saaty Method</div>
         </div>
       </div>
+    );
+  }
+
+  // Render Google-Form-style survey if surveyType === 'FORM'
+  if (survey && survey.surveyType === 'FORM') {
+    return (
+      <FormSurveyRenderer
+        slug={slug}
+        survey={{
+          id: survey.id,
+          title: survey.title,
+          description: survey.description,
+          status: survey.status,
+          formConfig: survey.formConfig || { sections: [], questions: [] },
+        }}
+      />
     );
   }
 

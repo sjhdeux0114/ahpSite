@@ -30,9 +30,11 @@ export async function GET() {
 
   const formatted = surveys.map(s => ({
     ...s,
+    surveyType: (s as any).surveyType || 'AHP',
     criteria: JSON.parse(s.criteria || '[]'),
     alternatives: JSON.parse(s.alternatives || '[]'),
     demographics: JSON.parse(s.demographics || '[]'),
+    formConfig: JSON.parse((s as any).formConfig || '{}'),
     consistencyThreshold: s.consistencyThreshold ?? 0.1,
     responseCount: s._count.responses,
   }));
@@ -48,7 +50,18 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { title, description, criteria, alternatives, hasAlternatives, demographics } = body;
+    const {
+      title,
+      description,
+      surveyType = 'AHP',
+      criteria,
+      alternatives,
+      hasAlternatives,
+      demographics,
+      formConfig,
+    } = body;
+
+    const isForm = surveyType === 'FORM';
 
     const rawThreshold = Number(body.consistencyThreshold);
     const consistencyThreshold =
@@ -56,18 +69,34 @@ export async function POST(request: Request) {
         ? Number(rawThreshold.toFixed(4))
         : 0.1;
 
-    if (!title || !criteria || criteria.length < 2) {
+    if (!title) {
       return NextResponse.json(
-        { error: '설문 제목과 최소 2개 이상의 평가 기준을 입력해주세요.' },
+        { error: '설문 제목을 입력해주세요.' },
         { status: 400 }
       );
     }
 
-    if (hasAlternatives && (!alternatives || alternatives.length < 2)) {
-      return NextResponse.json(
-        { error: '대안 평가를 포함할 경우 최소 2개 이상의 대안을 입력해주세요.' },
-        { status: 400 }
-      );
+    if (isForm) {
+      if (!formConfig || !Array.isArray(formConfig.questions) || formConfig.questions.length < 1) {
+        return NextResponse.json(
+          { error: '일반 설문에는 최소 1개 이상의 문항이 필요합니다.' },
+          { status: 400 }
+        );
+      }
+    } else {
+      if (!criteria || criteria.length < 2) {
+        return NextResponse.json(
+          { error: '설문 제목과 최소 2개 이상의 평가 기준을 입력해주세요.' },
+          { status: 400 }
+        );
+      }
+
+      if (hasAlternatives && (!alternatives || alternatives.length < 2)) {
+        return NextResponse.json(
+          { error: '대안 평가를 포함할 경우 최소 2개 이상의 대안을 입력해주세요.' },
+          { status: 400 }
+        );
+      }
     }
 
     // Generate unique slug
@@ -82,13 +111,15 @@ export async function POST(request: Request) {
       data: {
         title,
         description: description || '',
+        surveyType: isForm ? 'FORM' : 'AHP',
         slug,
         status: 'ACTIVE',
         userId: user.id,
-        hasAlternatives: Boolean(hasAlternatives),
-        criteria: JSON.stringify(criteria),
-        alternatives: JSON.stringify(alternatives || []),
-        demographics: JSON.stringify(demographics || []),
+        hasAlternatives: isForm ? false : Boolean(hasAlternatives),
+        criteria: JSON.stringify(isForm ? [] : criteria),
+        alternatives: JSON.stringify(isForm ? [] : alternatives || []),
+        demographics: JSON.stringify(isForm ? [] : demographics || []),
+        formConfig: JSON.stringify(isForm ? formConfig : {}),
         consistencyThreshold,
       },
     });

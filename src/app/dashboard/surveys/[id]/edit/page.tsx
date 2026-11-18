@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
+import FormMarkdownImporter from '@/components/form/FormMarkdownImporter';
+import FormSurveyBuilder from '@/components/form/FormSurveyBuilder';
+import { FormConfig } from '@/lib/form/types';
+import { ParseFormResult } from '@/lib/form/markdownParser';
 import {
   Plus,
   Trash2,
@@ -65,8 +69,10 @@ export default function EditSurveyPage() {
   const [copied, setCopied] = useState(false);
 
   // Form states
+  const [surveyType, setSurveyType] = useState<'AHP' | 'FORM'>('AHP');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [formConfig, setFormConfig] = useState<FormConfig>({ sections: [], questions: [] });
   const [hasSubcriteria, setHasSubcriteria] = useState(false);
   const [hasAlternatives, setHasAlternatives] = useState(false);
   const [criteria, setCriteria] = useState<CriterionEntry[]>([]);
@@ -88,8 +94,12 @@ export default function EditSurveyPage() {
       })
       .then(data => {
         const s = data.survey;
+        setSurveyType((s.surveyType as 'AHP' | 'FORM') || 'AHP');
         setTitle(s.title || '');
         setDescription(s.description || '');
+        if (s.formConfig) {
+          setFormConfig(s.formConfig);
+        }
         setSurveyStatus(s.status || 'ACTIVE');
         setSurveySlug(s.slug || '');
         setResponseCount(s.responseCount || 0);
@@ -384,6 +394,43 @@ export default function EditSurveyPage() {
     }
   };
 
+  const handleFormSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    if (!title.trim()) {
+      setError('설문 제목을 입력해주세요.');
+      return;
+    }
+    if (!formConfig.questions || formConfig.questions.length === 0) {
+      setError('최소 1개 이상의 문항이 필요합니다.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/surveys/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim(),
+          formConfig,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || '수정에 실패했습니다.');
+        setSaving(false);
+        return;
+      }
+      setSuccessMsg('설문 내용이 성공적으로 수정되었습니다.');
+      setSaving(false);
+    } catch {
+      setError('서버와 통신할 수 없습니다.');
+      setSaving(false);
+    }
+  };
+
   if (loadingInitial) {
     return (
       <>
@@ -512,6 +559,43 @@ export default function EditSurveyPage() {
           </div>
         )}
 
+        {surveyType === 'FORM' ? (
+          <div className="space-y-6">
+            <FormMarkdownImporter
+              onImport={(parsed: ParseFormResult) => {
+                setTitle(parsed.title);
+                setDescription(parsed.description);
+                setFormConfig(parsed.formConfig);
+              }}
+            />
+            <form onSubmit={handleFormSave} className="space-y-6">
+              <FormSurveyBuilder
+                title={title}
+                description={description}
+                formConfig={formConfig}
+                onChangeTitle={setTitle}
+                onChangeDescription={setDescription}
+                onChangeFormConfig={setFormConfig}
+              />
+              <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-4 pb-12">
+                <Link
+                  href="/dashboard"
+                  className="w-full sm:w-auto px-6 py-3.5 rounded-2xl border border-slate-300 text-slate-700 text-sm font-bold hover:bg-slate-100 transition text-center"
+                >
+                  취소하고 돌아가기
+                </Link>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition shadow-xl disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{saving ? '수정사항 저장 중...' : '일반 설문 수정사항 저장하기'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* SECTION 1: Basic Info */}
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs">
@@ -1025,6 +1109,7 @@ export default function EditSurveyPage() {
             </button>
           </div>
         </form>
+        )}
       </main>
     </>
   );

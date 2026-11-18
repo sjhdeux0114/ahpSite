@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import SurveyAnalysisView from '@/components/analysis/SurveyAnalysisView';
+import FormAnalysisView from '@/components/form/FormAnalysisView';
 
 export default function PublicSurveyAnalysisPage() {
   const params = useParams();
@@ -64,17 +65,26 @@ export default function PublicSurveyAnalysisPage() {
   return (
     <>
       <Navbar />
-      <SurveyAnalysisView
-        data={data}
-        loading={loading}
-        onlyValid={onlyValid}
-        setOnlyValid={setOnlyValid}
-        statusLoading={statusLoading}
-        onToggleStatus={data?.isOwner ? handleToggleStatus : undefined}
-        isPublicPage={true}
-        backHref={data?.isOwner ? '/dashboard' : '/'}
-        backLabel={data?.isOwner ? '대시보드로 돌아가기' : '홈으로 이동'}
-      />
+      {data?.survey?.surveyType === 'FORM' && data?.formAnalysis ? (
+        <FormAnalysisView
+          survey={data.survey}
+          formAnalysis={data.formAnalysis}
+          isOwner={Boolean(data?.isOwner)}
+          backHref={data?.isOwner ? '/dashboard' : '/'}
+        />
+      ) : (
+        <SurveyAnalysisView
+          data={data}
+          loading={loading}
+          onlyValid={onlyValid}
+          setOnlyValid={setOnlyValid}
+          statusLoading={statusLoading}
+          onToggleStatus={data?.isOwner ? handleToggleStatus : undefined}
+          isPublicPage={true}
+          backHref={data?.isOwner ? '/dashboard' : '/'}
+          backLabel={data?.isOwner ? '대시보드로 돌아가기' : '홈으로 이동'}
+        />
+      )}
     </>
   );
 }

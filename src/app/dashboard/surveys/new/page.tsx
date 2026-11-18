@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import {
@@ -13,9 +13,14 @@ import {
   ListChecks,
   CheckCircle2,
   AlertCircle,
+  ClipboardList,
 } from 'lucide-react';
 import SurveyMarkdownImporter from '@/components/ahp/SurveyMarkdownImporter';
 import { ParseSurveyResult } from '@/lib/surveyMarkdownParser';
+import FormMarkdownImporter from '@/components/form/FormMarkdownImporter';
+import FormSurveyBuilder from '@/components/form/FormSurveyBuilder';
+import { FormConfig } from '@/lib/form/types';
+import { ParseFormResult } from '@/lib/form/markdownParser';
 
 interface ItemEntry {
   id: string;
@@ -46,8 +51,36 @@ export interface DemographicQuestion {
 
 export default function NewSurveyPage() {
   const router = useRouter();
+  const [surveyType, setSurveyType] = useState<'AHP' | 'FORM'>('AHP');
   const [title, setTitle] = useState('스마트 업무 솔루션 도입 선정 AHP 분석');
   const [description, setDescription] = useState('기업 경쟁력 강화를 위한 업무 솔루션 도입 시 대분류 및 세부영역별 중요도를 도출하기 위한 전문가 설문입니다.');
+  const [formTitle, setFormTitle] = useState('새 일반 설문조사');
+  const [formDescription, setFormDescription] = useState('');
+  const [formConfig, setFormConfig] = useState<FormConfig>({
+    subtitle: '',
+    meta: '',
+    sections: [{ id: 'sec_1', title: '기본 문항', description: '' }],
+    questions: [
+      {
+        id: 'q_1',
+        sectionId: 'sec_1',
+        numberLabel: '01',
+        title: '참여해 주셔서 감사합니다. 연령대를 선택해 주세요.',
+        type: 'single_choice',
+        required: true,
+        options: ['20대', '30대', '40대', '50대 이상'],
+      },
+    ],
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('type') === 'form') {
+        setSurveyType('FORM');
+      }
+    }
+  }, []);
   const [hasSubcriteria, setHasSubcriteria] = useState(true);
   const [hasAlternatives, setHasAlternatives] = useState(true);
   const [consistencyThreshold, setConsistencyThreshold] = useState<number>(0.1);
@@ -514,17 +547,133 @@ export default function NewSurveyPage() {
     }
   };
 
+  const handleImportFormMarkdown = (parsed: ParseFormResult) => {
+    setFormTitle(parsed.title);
+    setFormDescription(parsed.description);
+    setFormConfig(parsed.formConfig);
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!formTitle.trim()) {
+      setError('설문 제목을 입력해주세요.');
+      return;
+    }
+    if (!formConfig.questions || formConfig.questions.length === 0) {
+      setError('최소 1개 이상의 문항을 추가해주세요.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/surveys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          surveyType: 'FORM',
+          title: formTitle.trim(),
+          description: formDescription.trim(),
+          formConfig,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || '설문 생성에 실패했습니다.');
+        setLoading(false);
+        return;
+      }
+      router.push('/dashboard');
+    } catch {
+      setError('서버와 통신할 수 없습니다.');
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <Navbar />
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">새 AHP 설문지 만들기</h1>
-          <p className="text-sm text-slate-600 mt-1">
-            평가 기준과 대안을 등록하면 Saaty 표준 9점 척도 쌍대비교 문항이 자동으로 생성됩니다.
-          </p>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
+              {surveyType === 'FORM' ? '새 일반 설문지 만들기' : '새 AHP 설문지 만들기'}
+            </h1>
+            <p className="text-sm text-slate-600 mt-1">
+              {surveyType === 'FORM'
+                ? 'Google Form 스타일의 객관식·주관식·그리드 설문을 만들거나 마크다운으로 빠르게 불러옵니다.'
+                : '평가 기준과 대안을 등록하면 Saaty 표준 9점 척도 쌍대비교 문항이 자동으로 생성됩니다.'}
+            </p>
+          </div>
+
+          <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 self-start">
+            <button
+              type="button"
+              onClick={() => {
+                setError('');
+                setSurveyType('AHP');
+              }}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                surveyType === 'AHP'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>AHP 계층분석</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setError('');
+                setSurveyType('FORM');
+              }}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                surveyType === 'FORM'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              <span>일반 설문 (Form)</span>
+            </button>
+          </div>
         </div>
 
+        {surveyType === 'FORM' ? (
+          <>
+            <FormMarkdownImporter onImport={handleImportFormMarkdown} />
+
+            {error && (
+              <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleFormSubmit} className="space-y-6">
+              <FormSurveyBuilder
+                title={formTitle}
+                description={formDescription}
+                formConfig={formConfig}
+                onChangeTitle={setFormTitle}
+                onChangeDescription={setFormDescription}
+                onChangeFormConfig={setFormConfig}
+              />
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white font-bold text-base shadow-md transition"
+                >
+                  <span>{loading ? '생성 중...' : '일반 설문 생성 및 배포하기'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <>
         {/* AI / Markdown Importer */}
         <div className="mb-8">
           <SurveyMarkdownImporter onImport={handleImportMarkdown} />
@@ -1090,6 +1239,8 @@ export default function NewSurveyPage() {
             </button>
           </div>
         </form>
+          </>
+        )}
       </main>
     </>
   );

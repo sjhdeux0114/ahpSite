@@ -27,9 +27,11 @@ export async function GET(
   return NextResponse.json({
     survey: {
       ...survey,
+      surveyType: (survey as any).surveyType || 'AHP',
       criteria: JSON.parse(survey.criteria || '[]'),
       alternatives: JSON.parse(survey.alternatives || '[]'),
       demographics: JSON.parse(survey.demographics || '[]'),
+      formConfig: JSON.parse((survey as any).formConfig || '{}'),
       consistencyThreshold: survey.consistencyThreshold ?? 0.1,
       responseCount: survey._count.responses,
     },
@@ -53,22 +55,30 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const { status, title, description, criteria, alternatives, hasAlternatives, demographics, consistencyThreshold } = body;
+    const { status, title, description, criteria, alternatives, hasAlternatives, demographics, formConfig, consistencyThreshold } = body;
+    const isForm = ((survey as any).surveyType || 'AHP') === 'FORM';
 
     if (title !== undefined && !title.trim()) {
       return NextResponse.json({ error: '설문 제목을 입력해주세요.' }, { status: 400 });
     }
 
-    if (criteria !== undefined && (!Array.isArray(criteria) || criteria.length < 2)) {
+    if (!isForm && criteria !== undefined && (!Array.isArray(criteria) || criteria.length < 2)) {
       return NextResponse.json(
         { error: 'AHP 분석을 위해 최소 2개 이상의 평가 기준(대분류)이 필요합니다.' },
         { status: 400 }
       );
     }
 
-    if (hasAlternatives && alternatives !== undefined && (!Array.isArray(alternatives) || alternatives.length < 2)) {
+    if (!isForm && hasAlternatives && alternatives !== undefined && (!Array.isArray(alternatives) || alternatives.length < 2)) {
       return NextResponse.json(
         { error: '대안 평가를 포함할 경우 최소 2개 이상의 대안이 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    if (isForm && formConfig !== undefined && (!Array.isArray(formConfig.questions) || formConfig.questions.length < 1)) {
+      return NextResponse.json(
+        { error: '일반 설문에는 최소 1개 이상의 문항이 필요합니다.' },
         { status: 400 }
       );
     }
@@ -91,6 +101,7 @@ export async function PATCH(
         ...(criteria !== undefined && { criteria: JSON.stringify(criteria) }),
         ...(alternatives !== undefined && { alternatives: JSON.stringify(alternatives) }),
         ...(demographics !== undefined && { demographics: JSON.stringify(demographics) }),
+        ...(formConfig !== undefined && { formConfig: JSON.stringify(formConfig) }),
         ...(parsedThreshold !== undefined && { consistencyThreshold: parsedThreshold }),
       },
     });
@@ -143,9 +154,11 @@ export async function PATCH(
       success: true,
       survey: {
         ...updated,
+        surveyType: (updated as any).surveyType || 'AHP',
         criteria: JSON.parse(updated.criteria || '[]'),
         alternatives: JSON.parse(updated.alternatives || '[]'),
         demographics: JSON.parse(updated.demographics || '[]'),
+        formConfig: JSON.parse((updated as any).formConfig || '{}'),
         consistencyThreshold: updated.consistencyThreshold ?? 0.1,
       },
     });

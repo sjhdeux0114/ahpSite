@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import SurveyAnalysisView from '@/components/analysis/SurveyAnalysisView';
+import FormAnalysisView from '@/components/form/FormAnalysisView';
 
 export default function SurveyAnalysisPage() {
   const params = useParams();
@@ -64,16 +65,25 @@ export default function SurveyAnalysisPage() {
   return (
     <>
       <Navbar />
-      <SurveyAnalysisView
-        data={data}
-        loading={loading}
-        onlyValid={onlyValid}
-        setOnlyValid={setOnlyValid}
-        statusLoading={statusLoading}
-        onToggleStatus={handleToggleStatus}
-        backHref="/dashboard"
-        backLabel="대시보드로 돌아가기"
-      />
+      {data?.survey?.surveyType === 'FORM' && data?.formAnalysis ? (
+        <FormAnalysisView
+          survey={data.survey}
+          formAnalysis={data.formAnalysis}
+          isOwner={true}
+          backHref="/dashboard"
+        />
+      ) : (
+        <SurveyAnalysisView
+          data={data}
+          loading={loading}
+          onlyValid={onlyValid}
+          setOnlyValid={setOnlyValid}
+          statusLoading={statusLoading}
+          onToggleStatus={handleToggleStatus}
+          backHref="/dashboard"
+          backLabel="대시보드로 돌아가기"
+        />
+      )}
     </>
   );
 }

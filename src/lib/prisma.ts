@@ -50,12 +50,19 @@ export async function ensureDbSchema() {
         CONSTRAINT "Survey_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
       );
     `);
-    // Migration: add consistencyThreshold if not exists in Survey table
+    // Migration: add consistencyThreshold, surveyType, formConfig if not exists in Survey table
     try {
       const surveyColumns: any = await prisma.$queryRawUnsafe(`PRAGMA table_info("Survey");`);
-      const hasThresholdCol = Array.isArray(surveyColumns) && surveyColumns.some((col: any) => col.name === 'consistencyThreshold');
-      if (!hasThresholdCol) {
+      const hasCol = (name: string) =>
+        Array.isArray(surveyColumns) && surveyColumns.some((col: any) => col.name === name);
+      if (!hasCol('consistencyThreshold')) {
         await prisma.$executeRawUnsafe(`ALTER TABLE "Survey" ADD COLUMN "consistencyThreshold" REAL DEFAULT 0.1;`);
+      }
+      if (!hasCol('surveyType')) {
+        await prisma.$executeRawUnsafe(`ALTER TABLE "Survey" ADD COLUMN "surveyType" TEXT NOT NULL DEFAULT 'AHP';`);
+      }
+      if (!hasCol('formConfig')) {
+        await prisma.$executeRawUnsafe(`ALTER TABLE "Survey" ADD COLUMN "formConfig" TEXT NOT NULL DEFAULT '{}';`);
       }
     } catch {
       // ignore if migration check fails or column already exists

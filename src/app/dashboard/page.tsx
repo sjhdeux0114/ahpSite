@@ -28,9 +28,11 @@ interface SurveyItem {
   slug: string;
   title: string;
   description?: string;
+  surveyType?: 'AHP' | 'FORM';
   status: 'ACTIVE' | 'CLOSED' | 'DRAFT';
   criteria: any[];
   alternatives: any[];
+  formConfig?: any;
   hasAlternatives: boolean;
   responseCount: number;
   createdAt: string;
@@ -176,7 +178,14 @@ export default function DashboardPage() {
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 shadow-sm transition"
             >
               <PlusCircle className="w-4 h-4" />
-              새 설문 만들기
+              새 AHP 설문
+            </Link>
+            <Link
+              href="/dashboard/surveys/new?type=form"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 shadow-sm transition"
+            >
+              <PlusCircle className="w-4 h-4" />
+              일반 설문 만들기
             </Link>
           </div>
         </div>
@@ -250,6 +259,15 @@ export default function DashboardPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2.5 mb-2">
                       <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                          survey.surveyType === 'FORM'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-indigo-100 text-indigo-800'
+                        }`}
+                      >
+                        {survey.surveyType === 'FORM' ? '일반 설문' : 'AHP'}
+                      </span>
+                      <span
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                           isClosed
                             ? 'bg-slate-100 text-slate-700'
@@ -274,13 +292,23 @@ export default function DashboardPage() {
                     )}
 
                     <div className="flex items-center gap-4 text-xs text-slate-500">
-                      <span>평가 기준 <strong>{survey.criteria?.length || 0}</strong>개</span>
-                      <span>•</span>
-                      <span>
-                        {survey.hasAlternatives
-                          ? `대안 ${survey.alternatives?.length || 0}개`
-                          : '기준 가중치 단독'}
-                      </span>
+                      {survey.surveyType === 'FORM' ? (
+                        <>
+                          <span>섹션 <strong>{survey.formConfig?.sections?.length || 0}</strong>개</span>
+                          <span>•</span>
+                          <span>문항 <strong>{survey.formConfig?.questions?.length || 0}</strong>개</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>평가 기준 <strong>{survey.criteria?.length || 0}</strong>개</span>
+                          <span>•</span>
+                          <span>
+                            {survey.hasAlternatives
+                              ? `대안 ${survey.alternatives?.length || 0}개`
+                              : '기준 가중치 단독'}
+                          </span>
+                        </>
+                      )}
                       <span>•</span>
                       <span className="font-semibold text-indigo-600">
                         응답 <strong>{survey.responseCount}</strong>건 수집

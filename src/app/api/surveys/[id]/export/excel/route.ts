@@ -11,6 +11,7 @@ import {
   SubCriterionResult,
 } from '@/lib/ahp/calculator';
 import { generateExcelReport } from '@/lib/export/excel';
+import { generateFormExcelReport } from '@/lib/export/formExcel';
 
 export async function GET(
   request: Request,
@@ -32,6 +33,37 @@ export async function GET(
 
   if (!survey || survey.userId !== user.id) {
     return NextResponse.json({ error: '설문을 찾을 수 없습니다.' }, { status: 404 });
+  }
+
+  const surveyType = (survey as any).surveyType || 'AHP';
+  if (surveyType === 'FORM') {
+    const formConfig = JSON.parse((survey as any).formConfig || '{}');
+    const formResponses = survey.responses.map(r => {
+      let answers: any = {};
+      try { answers = JSON.parse(r.answers); } catch {}
+      return {
+        id: r.id,
+        name: r.respondentName || '익명 응답자',
+        email: r.respondentEmail || '',
+        createdAt: r.createdAt,
+        answers,
+      };
+    });
+    const excelBuffer = await generateFormExcelReport({
+      title: survey.title,
+      description: survey.description || '',
+      createdAt: survey.createdAt,
+      formConfig,
+      responses: formResponses,
+    });
+    const filename = encodeURIComponent(`${survey.title}_설문결과.xlsx`);
+    return new NextResponse(excelBuffer as any, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename*=UTF-8''${filename}`,
+      },
+    });
   }
 
   const criteria: Array<{ id: string; name: string; description?: string; subcriteria?: Array<{ id: string; name: string; description?: string }> }> = JSON.parse(survey.criteria || '[]');
