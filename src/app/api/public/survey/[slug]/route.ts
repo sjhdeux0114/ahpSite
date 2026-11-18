@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { buildMatrix, calculateAHP } from '@/lib/ahp/calculator';
+import { buildMatrix, calculateAHP, getLeafCriteria } from '@/lib/ahp/calculator';
 
 export async function GET(
   request: Request,
@@ -97,10 +97,11 @@ export async function POST(
     const alternativesCR: Record<string, number> = {};
 
     if (survey.hasAlternatives && alternatives.length > 0) {
-      for (const crit of criteria) {
-        const altMatrix = buildMatrix(altIds, answers.alternatives?.[crit.id] || {});
+      const leafCriteria = getLeafCriteria(criteria);
+      for (const leaf of leafCriteria) {
+        const altMatrix = buildMatrix(altIds, answers.alternatives?.[leaf.id] || {});
         const altAHP = calculateAHP(altMatrix, threshold);
-        alternativesCR[crit.id] = altAHP.cr;
+        alternativesCR[leaf.id] = altAHP.cr;
         if (!altAHP.isConsistent) {
           isAllConsistent = false;
         }

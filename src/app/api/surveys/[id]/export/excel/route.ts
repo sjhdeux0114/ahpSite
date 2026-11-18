@@ -5,7 +5,7 @@ import {
   buildMatrix,
   calculateAHP,
   aggregateGroupMatrices,
-  synthesizePriorities,
+  aggregateAndSynthesizeAlternatives,
   getRandomIndex,
   AHPResult,
   SubCriterionResult,
@@ -132,17 +132,16 @@ export async function GET(
     compositeCR = compositeRI > 0 ? Number((compositeCI / compositeRI).toFixed(4)) : 0.0;
 
     if (survey.hasAlternatives && alternatives.length > 0) {
-      const altWeightsByCriteria: number[][] = [];
-      for (const crit of criteria) {
-        const individualAltMatrices = targetResponses.map(r =>
-          buildMatrix(altIds, r.answers.alternatives?.[crit.id] || {})
-        );
-        const groupAltMatrix = aggregateGroupMatrices(individualAltMatrices);
-        const altAHP = calculateAHP(groupAltMatrix, threshold);
-        alternativesAHPByCriteria[crit.id] = altAHP;
-        altWeightsByCriteria.push(altAHP.weights);
-      }
-      finalAlternativeWeights = synthesizePriorities(criteriaAHP.weights, altWeightsByCriteria);
+      const synthesized = aggregateAndSynthesizeAlternatives(
+        criteria,
+        criteriaAHP.weights,
+        subcriteriaAHPByCriteria,
+        altIds,
+        targetResponses.map(r => r.answers.alternatives),
+        threshold
+      );
+      alternativesAHPByCriteria = synthesized.alternativesAHPByCriteria;
+      finalAlternativeWeights = synthesized.finalAlternativeWeights;
     }
   }
 

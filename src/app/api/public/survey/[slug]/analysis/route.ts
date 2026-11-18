@@ -5,7 +5,7 @@ import {
   buildMatrix,
   calculateAHP,
   aggregateGroupMatrices,
-  synthesizePriorities,
+  aggregateAndSynthesizeAlternatives,
   getRandomIndex,
   AHPResult,
   SubCriterionResult,
@@ -100,6 +100,7 @@ export async function GET(
         isHierarchyConsistent: true,
         hasSubcriteria: criteria.some((c: any) => c.subcriteria && c.subcriteria.length > 0),
         alternativesAHPByCriteria: {},
+        alternativesAHPByLeaf: {},
         finalAlternativeWeights: null,
       },
       responses: parsedResponses,
@@ -165,24 +166,23 @@ export async function GET(
   const compositeRI = Number((mainRI + sumWeightedRI).toFixed(4));
   const compositeCR = compositeRI > 0 ? Number((compositeCI / compositeRI).toFixed(4)) : 0.0;
 
-  // 2. Group Alternatives Matrix Aggregation (per criterion)
+  // 2. Group Alternatives Matrix Aggregation (per leaf criterion, rolled up to Level 1 criteria)
   let alternativesAHPByCriteria: Record<string, AHPResult> = {};
+  let alternativesAHPByLeaf: Record<string, AHPResult> = {};
   let finalAlternativeWeights: { alternativeWeights: number[]; contributionMatrix: number[][] } | null = null;
 
   if (survey.hasAlternatives && alternatives.length > 0) {
-    const altWeightsByCriteria: number[][] = [];
-
-    for (const crit of criteria) {
-      const individualAltMatrices = targetResponses.map(r =>
-        buildMatrix(altIds, r.answers.alternatives?.[crit.id] || {})
-      );
-      const groupAltMatrix = aggregateGroupMatrices(individualAltMatrices);
-      const altAHP = calculateAHP(groupAltMatrix, threshold);
-      alternativesAHPByCriteria[crit.id] = altAHP;
-      altWeightsByCriteria.push(altAHP.weights);
-    }
-
-    finalAlternativeWeights = synthesizePriorities(criteriaAHP.weights, altWeightsByCriteria);
+    const synthesized = aggregateAndSynthesizeAlternatives(
+      criteria,
+      criteriaAHP.weights,
+      subcriteriaAHPByCriteria,
+      altIds,
+      targetResponses.map(r => r.answers.alternatives),
+      threshold
+    );
+    alternativesAHPByCriteria = synthesized.alternativesAHPByCriteria;
+    alternativesAHPByLeaf = synthesized.alternativesAHPByLeaf;
+    finalAlternativeWeights = synthesized.finalAlternativeWeights;
   }
 
   return NextResponse.json({
@@ -209,6 +209,7 @@ export async function GET(
       isHierarchyConsistent: compositeCR <= threshold,
       hasSubcriteria: hasAnySubcriteria,
       alternativesAHPByCriteria,
+      alternativesAHPByLeaf,
       finalAlternativeWeights,
     },
     responses: parsedResponses,

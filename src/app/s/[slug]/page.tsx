@@ -6,6 +6,7 @@ import {
   checkRealtimeConsistency,
   RealtimeConsistencyCheck,
 } from '@/lib/ahp/consistency';
+import { getLeafCriteria, LeafCriterion } from '@/lib/ahp/calculator';
 import PairwiseItem, { PairItemData } from '@/components/ahp/PairwiseItem';
 import ConsistencyTracker, { TrackerTab } from '@/components/ahp/ConsistencyTracker';
 import ConsistencyAlertModal from '@/components/ahp/ConsistencyAlertModal';
@@ -64,6 +65,7 @@ export interface WizardStep {
   title: string;
   description?: string;
   criterion?: CriterionData;
+  leafCriterion?: LeafCriterion;
   totalPairs: number;
   answeredPairs: number;
   isComplete: boolean;
@@ -222,17 +224,22 @@ export default function PublicSurveyPage() {
     return map;
   }, [survey, subAnswers, threshold]);
 
-  // Real-time consistency for all alternative matrices
+  // Leaf criteria (bottom level of hierarchy for alternative pairwise comparisons)
+  const leafCriteria = useMemo(() => {
+    return getLeafCriteria(survey?.criteria || []);
+  }, [survey]);
+
+  // Real-time consistency for all alternative matrices (per leaf criterion)
   const altConsistencies = useMemo(() => {
     if (!survey || !survey.hasAlternatives || !survey.alternatives || survey.alternatives.length < 2) {
       return {};
     }
     const map: Record<string, RealtimeConsistencyCheck> = {};
-    survey.criteria.forEach(crit => {
-      map[crit.id] = checkRealtimeConsistency(survey.alternatives, altAnswers[crit.id] || {}, threshold);
+    leafCriteria.forEach(leaf => {
+      map[leaf.id] = checkRealtimeConsistency(survey.alternatives, altAnswers[leaf.id] || {}, threshold);
     });
     return map;
-  }, [survey, altAnswers, threshold]);
+  }, [survey, leafCriteria, altAnswers, threshold]);
 
   // Criteria with at least 2 subcriteria
   const criteriaWithSub = useMemo(() => {
@@ -357,20 +364,20 @@ export default function PublicSurveyPage() {
       });
     }
 
-    // Step 3-1 ... 3-m: Alternatives Pairwise (if alternatives exist)
+    // Step 3-1 ... 3-m: Alternatives Pairwise per Leaf Criterion (if alternatives exist)
     if (survey.hasAlternatives && survey.alternatives.length > 1) {
       const stepNum = hasAnySubs ? '3' : '2';
-      survey.criteria.forEach((crit, altIdx) => {
-        const answered = Object.keys(altAnswers[crit.id] || {}).length;
+      leafCriteria.forEach((leaf, altIdx) => {
+        const answered = Object.keys(altAnswers[leaf.id] || {}).length;
         list.push({
-          id: `alt_${crit.id}`,
+          id: `alt_${leaf.id}`,
           type: 'alternatives',
           stepIndex: idx++,
           badge: `${stepNum}-${altIdx + 1}단계`,
-          shortTitle: `${stepNum}-${altIdx + 1}. 대안 (${crit.name})`,
-          title: `${stepNum}-${altIdx + 1}단계: [${crit.name}] 관점 대안 간 비교`,
-          description: crit.description || `'${crit.name}' 기준의 관점에서 각 대안들의 적합도 및 중요도를 1:1로 비교해 주세요.`,
-          criterion: crit,
+          shortTitle: `${stepNum}-${altIdx + 1}. 대안 (${leaf.name})`,
+          title: `${stepNum}-${altIdx + 1}단계: [${leaf.displayName}] 관점 대안 간 비교`,
+          description: leaf.description || `'${leaf.displayName}' 기준의 관점에서 각 대안들의 적합도 및 중요도를 1:1로 비교해 주세요.`,
+          leafCriterion: leaf,
           totalPairs: altPairs.length,
           answeredPairs: answered,
           isComplete: altPairs.length > 0 && answered >= altPairs.length,
@@ -400,6 +407,7 @@ export default function PublicSurveyPage() {
     criteriaAnswers,
     criteriaPairs,
     criteriaWithSub,
+    leafCriteria,
     subPairsMap,
     subAnswers,
     altAnswers,
@@ -448,8 +456,8 @@ export default function PublicSurveyPage() {
 
     if (survey.hasAlternatives && survey.alternatives.length > 1) {
       const stepNum = hasAnySubs ? '3' : '2';
-      survey.criteria.forEach((crit, idx) => {
-        const check = altConsistencies[crit.id] || {
+      leafCriteria.forEach((leaf, idx) => {
+        const check = altConsistencies[leaf.id] || {
           totalPairs: (survey.alternatives.length * (survey.alternatives.length - 1)) / 2,
           answeredPairs: 0,
           isComplete: false,
@@ -461,16 +469,16 @@ export default function PublicSurveyPage() {
           message: '',
         };
         list.push({
-          id: `alt_${crit.id}`,
-          title: `${stepNum}-${idx + 1}단계: [${crit.name}] 관점 대안 간 비교`,
-          shortTitle: `${stepNum}-${idx + 1}. 대안`,
+          id: `alt_${leaf.id}`,
+          title: `${stepNum}-${idx + 1}단계: [${leaf.displayName}] 관점 대안 간 비교`,
+          shortTitle: `${stepNum}-${idx + 1}. ${leaf.name}`,
           check,
         });
       });
     }
 
     return list;
-  }, [survey, criteriaConsistency, criteriaWithSub, subConsistencies, altConsistencies]);
+  }, [survey, criteriaConsistency, criteriaWithSub, leafCriteria, subConsistencies, altConsistencies]);
 
   // Determine active tracker tab id
   const activeTrackerTabId = useMemo(() => {
@@ -557,21 +565,21 @@ export default function PublicSurveyPage() {
         });
         return;
       }
-    } else if (currentStep.type === 'alternatives' && currentStep.criterion) {
-      const crit = currentStep.criterion;
-      const answersForCrit = altAnswers[crit.id] || {};
-      const answered = Object.keys(answersForCrit).length;
+    } else if (currentStep.type === 'alternatives' && currentStep.leafCriterion) {
+      const leaf = currentStep.leafCriterion;
+      const answersForLeaf = altAnswers[leaf.id] || {};
+      const answered = Object.keys(answersForLeaf).length;
       const missingCount = altPairs.length - answered;
       if (missingCount > 0) {
-        const firstMissing = altPairs.find(p => answersForCrit[p.key] === undefined);
-        const reason = `'${crit.name}' 기준 대안 비교 총 ${altPairs.length}개 문항 중 ${missingCount}개 문항에 아직 응답하지 않으셨습니다.`;
-        setStepError(`'${crit.name}' 기준 대안 비교의 모든 문항에 응답해 주세요. (미응답: ${missingCount}개)`);
+        const firstMissing = altPairs.find(p => answersForLeaf[p.key] === undefined);
+        const reason = `'${leaf.displayName}' 기준 대안 비교 총 ${altPairs.length}개 문항 중 ${missingCount}개 문항에 아직 응답하지 않으셨습니다.`;
+        setStepError(`'${leaf.displayName}' 기준 대안 비교의 모든 문항에 응답해 주세요. (미응답: ${missingCount}개)`);
         setIncompleteModal({
           isOpen: true,
-          title: `[${crit.name}] 대안 비교 미완료`,
+          title: `[${leaf.displayName}] 대안 비교 미완료`,
           stepBadge: currentStep.badge,
           reason,
-          detail: `'${crit.name}' 기준 관점에서의 대안 간 1:1 비교를 모두 완료하셔야 다음 단계로 이동하실 수 있습니다.`,
+          detail: `'${leaf.displayName}' 기준 관점에서의 대안 간 1:1 비교를 모두 완료하셔야 다음 단계로 이동하실 수 있습니다.`,
           targetId: firstMissing ? `pair-card-${firstMissing.key}` : undefined,
         });
         return;
@@ -698,23 +706,23 @@ export default function PublicSurveyPage() {
       }
     }
 
-    // Check completion of alternatives
+    // Check completion of alternatives (per leaf criterion)
     if (survey?.hasAlternatives && survey.alternatives.length > 1) {
-      for (const crit of survey.criteria) {
-        const answersForCrit = altAnswers[crit.id] || {};
-        if (altPairs.length > Object.keys(answersForCrit).length) {
-          const missingCount = altPairs.length - Object.keys(answersForCrit).length;
-          const msg = `'${crit.name}' 기준 대안 비교 총 ${altPairs.length}개 문항 중 ${missingCount}개 문항에 아직 응답하지 않으셨습니다.`;
+      for (const leaf of leafCriteria) {
+        const answersForLeaf = altAnswers[leaf.id] || {};
+        if (altPairs.length > Object.keys(answersForLeaf).length) {
+          const missingCount = altPairs.length - Object.keys(answersForLeaf).length;
+          const msg = `'${leaf.displayName}' 기준 대안 비교 총 ${altPairs.length}개 문항 중 ${missingCount}개 문항에 아직 응답하지 않으셨습니다.`;
           setSubmitError(msg);
           setIncompleteModal({
             isOpen: true,
-            title: `[${crit.name}] 대안 비교 미완료`,
+            title: `[${leaf.displayName}] 대안 비교 미완료`,
             stepBadge: '대안 비교',
             reason: msg,
-            detail: `'${crit.name}' 기준 관점의 대안 간 비교에 모두 응답하셔야 설문을 최종 제출하실 수 있습니다.`,
-            targetId: `alt_${crit.id}`,
+            detail: `'${leaf.displayName}' 기준 관점의 대안 간 비교에 모두 응답하셔야 설문을 최종 제출하실 수 있습니다.`,
+            targetId: `alt_${leaf.id}`,
           });
-          navigateToStepById(`alt_${crit.id}`);
+          navigateToStepById(`alt_${leaf.id}`);
           return;
         }
       }
@@ -874,7 +882,7 @@ export default function PublicSurveyPage() {
   const activeSubConsistency = currentStep?.criterion ? subConsistencies[currentStep.criterion.id] : null;
 
   // Current active alternative consistency
-  const activeAltConsistency = currentStep?.criterion ? altConsistencies[currentStep.criterion.id] : null;
+  const activeAltConsistency = currentStep?.leafCriterion ? altConsistencies[currentStep.leafCriterion.id] : null;
 
   return (
     <div ref={topAnchorRef} className="min-h-screen bg-slate-50 flex flex-col">
@@ -1352,21 +1360,21 @@ export default function PublicSurveyPage() {
         )}
 
         {/* ================= STEP 3: ALTERNATIVES PAIRWISE ================= */}
-        {currentStep.type === 'alternatives' && currentStep.criterion && (
+        {currentStep.type === 'alternatives' && currentStep.leafCriterion && (
           <div className="space-y-6">
             {/* Step Header Card */}
             <div className="bg-white rounded-3xl p-6 sm:p-7 border border-emerald-200/90 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2.5">
                   <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-extrabold text-sm flex items-center justify-center shadow-xs">
-                    3
+                    {criteriaWithSub.length > 0 ? '3' : '2'}
                   </span>
                   <div>
                     <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider block">
                       {currentStep.badge}: 대안 간 비교
                     </span>
                     <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">
-                      [{currentStep.criterion.name}] 관점 대안 간 비교
+                      [{currentStep.leafCriterion.displayName}] 관점 대안 간 비교
                     </h2>
                   </div>
                 </div>
@@ -1384,10 +1392,10 @@ export default function PublicSurveyPage() {
 
               <div className="p-3.5 bg-emerald-50/70 border border-emerald-100 rounded-2xl text-xs sm:text-sm text-emerald-950 mb-3">
                 <span className="font-bold text-emerald-900 block mb-0.5">
-                  평가 기준: {currentStep.criterion.name}
+                  평가 기준: {currentStep.leafCriterion.displayName}
                 </span>
                 <p className="text-emerald-800 text-xs">
-                  '{currentStep.criterion.name}' 기준 하에서 후보 대안들을 1:1로 비교해 주세요.
+                  '{currentStep.leafCriterion.displayName}' 기준 하에서 후보 대안들을 1:1로 비교해 주세요.
                 </p>
               </div>
 
@@ -1425,7 +1433,8 @@ export default function PublicSurveyPage() {
             {/* Alternatives Pairwise Cards */}
             <div className="space-y-4">
               {altPairs.map(pair => {
-                const val = (altAnswers[currentStep.criterion!.id] || {})[pair.key];
+                const leafId = currentStep.leafCriterion!.id;
+                const val = (altAnswers[leafId] || {})[pair.key];
                 const isWorst =
                   activeAltConsistency?.worstInconsistency?.itemA.id === pair.itemA.id &&
                   activeAltConsistency?.worstInconsistency?.itemB.id === pair.itemB.id;
@@ -1437,7 +1446,7 @@ export default function PublicSurveyPage() {
                       itemB={pair.itemB}
                       pairKey={pair.key}
                       value={val}
-                      onChange={(k, v) => handleAltChange(currentStep.criterion!.id, k, v)}
+                      onChange={(k, v) => handleAltChange(leafId, k, v)}
                       isWorstOffender={isWorst}
                       recommendedText={activeAltConsistency?.worstInconsistency?.recommendedRatingLabel}
                     />
@@ -1602,16 +1611,16 @@ export default function PublicSurveyPage() {
                 })}
 
                 {/* Alternatives Cards */}
-                {survey.hasAlternatives && survey.alternatives.length > 1 && survey.criteria.map((crit, altIdx) => {
-                  const stepObj = steps.find(s => s.id === `alt_${crit.id}`);
-                  const check = altConsistencies[crit.id];
+                {survey.hasAlternatives && survey.alternatives.length > 1 && leafCriteria.map(leaf => {
+                  const stepObj = steps.find(s => s.id === `alt_${leaf.id}`);
+                  const check = altConsistencies[leaf.id];
                   const total = altPairs.length;
-                  const answered = Object.keys(altAnswers[crit.id] || {}).length;
+                  const answered = Object.keys(altAnswers[leaf.id] || {}).length;
                   const isDone = stepObj?.isComplete;
 
                   return (
                     <div
-                      key={crit.id}
+                      key={leaf.id}
                       className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 flex items-center justify-between gap-3"
                     >
                       <div className="flex items-center gap-3">
@@ -1622,7 +1631,7 @@ export default function PublicSurveyPage() {
                         </span>
                         <div>
                           <span className="text-sm font-bold text-slate-900 block">
-                            대안 비교: [{crit.name}] 기준 관점
+                            대안 비교: [{leaf.displayName}] 기준 관점
                           </span>
                           <div className="flex items-center gap-2 text-xs mt-0.5">
                             <span className="text-slate-500">
@@ -1640,7 +1649,7 @@ export default function PublicSurveyPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => navigateToStepById(`alt_${crit.id}`)}
+                        onClick={() => navigateToStepById(`alt_${leaf.id}`)}
                         className="px-3 py-1.5 rounded-xl border border-emerald-200 bg-white hover:bg-emerald-50 text-xs font-semibold text-emerald-700"
                       >
                         확인/수정

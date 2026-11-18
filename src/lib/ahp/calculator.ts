@@ -412,6 +412,127 @@ export interface SubCriterionResult {
   globalRank: number;
 }
 
+export interface LeafCriterion {
+  id: string;
+  name: string;
+  description?: string;
+  parentId?: string;
+  parentName?: string;
+  isSubcriterion: boolean;
+  displayName: string;
+}
+
+/**
+ * Returns the bottom-level (leaf) criteria of a hierarchy in traversal order.
+ * If a criterion has subcriteria, its subcriteria are the leaves; otherwise the criterion itself is a leaf.
+ */
+export function getLeafCriteria(criteria: HierarchyCriterionItem[]): LeafCriterion[] {
+  const leaves: LeafCriterion[] = [];
+  for (const crit of criteria) {
+    const subs = crit.subcriteria || [];
+    if (subs.length > 0) {
+      for (const sub of subs) {
+        leaves.push({
+          id: sub.id,
+          name: sub.name,
+          description: sub.description,
+          parentId: crit.id,
+          parentName: crit.name,
+          isSubcriterion: true,
+          displayName: `${crit.name} > ${sub.name}`,
+        });
+      }
+    } else {
+      leaves.push({
+        id: crit.id,
+        name: crit.name,
+        description: crit.description,
+        isSubcriterion: false,
+        displayName: crit.name,
+      });
+    }
+  }
+  return leaves;
+}
+
+/**
+ * Aggregates alternative pairwise comparison matrices at the leaf-criterion level,
+ * rolls up subcriterion alternative weights to their parent Level-1 criteria,
+ * and synthesizes the final alternative priority weights.
+ */
+export function aggregateAndSynthesizeAlternatives(
+  criteria: HierarchyCriterionItem[],
+  criteriaWeights: number[],
+  subcriteriaAHPByCriteria: Record<string, AHPResult>,
+  altIds: string[],
+  responsesAnswersAlternatives: Array<Record<string, PairwiseAnswerMap> | undefined>,
+  threshold: number = 0.10
+): {
+  alternativesAHPByCriteria: Record<string, AHPResult>;
+  alternativesAHPByLeaf: Record<string, AHPResult>;
+  finalAlternativeWeights: { alternativeWeights: number[]; contributionMatrix: number[][] };
+} {
+  const leaves = getLeafCriteria(criteria);
+  const alternativesAHPByLeaf: Record<string, AHPResult> = {};
+
+  for (const leaf of leaves) {
+    const individualAltMatrices = responsesAnswersAlternatives.map(altMap =>
+      buildMatrix(altIds, altMap?.[leaf.id] || {})
+    );
+    const groupAltMatrix = aggregateGroupMatrices(individualAltMatrices);
+    alternativesAHPByLeaf[leaf.id] = calculateAHP(groupAltMatrix, threshold);
+  }
+
+  const alternativesAHPByCriteria: Record<string, AHPResult> = {};
+  const altWeightsByCriteria: number[][] = [];
+  const numAlts = altIds.length;
+
+  for (const crit of criteria) {
+    const subs = crit.subcriteria || [];
+    if (subs.length === 0) {
+      const leafAHP = alternativesAHPByLeaf[crit.id] || calculateAHP(buildMatrix(altIds, {}), threshold);
+      alternativesAHPByCriteria[crit.id] = leafAHP;
+      altWeightsByCriteria.push(leafAHP.weights);
+    } else {
+      // Roll up subcriteria alternative weights to parent criterion using local subcriteria weights
+      const subWeights =
+        subs.length >= 2 && subcriteriaAHPByCriteria[crit.id]?.weights?.length === subs.length
+          ? subcriteriaAHPByCriteria[crit.id].weights
+          : subs.map(() => 1 / subs.length);
+
+      const rolledUpWeights = new Array(numAlts).fill(0);
+      subs.forEach((sub, sIdx) => {
+        const subW = subWeights[sIdx] || 0;
+        const leafWeights = alternativesAHPByLeaf[sub.id]?.weights || [];
+        for (let aIdx = 0; aIdx < numAlts; aIdx++) {
+          rolledUpWeights[aIdx] += subW * (leafWeights[aIdx] || 0);
+        }
+      });
+
+      const sumRolled = rolledUpWeights.reduce((acc, v) => acc + v, 0);
+      const normalizedRolled = sumRolled > 0 ? rolledUpWeights.map(v => v / sumRolled) : rolledUpWeights;
+
+      alternativesAHPByCriteria[crit.id] = {
+        weights: normalizedRolled,
+        lambdaMax: 0,
+        ci: 0,
+        cr: 0,
+        isConsistent: subs.every(sub => alternativesAHPByLeaf[sub.id]?.isConsistent ?? true),
+        matrix: [],
+      };
+      altWeightsByCriteria.push(normalizedRolled);
+    }
+  }
+
+  const finalAlternativeWeights = synthesizePriorities(criteriaWeights, altWeightsByCriteria);
+
+  return {
+    alternativesAHPByCriteria,
+    alternativesAHPByLeaf,
+    finalAlternativeWeights,
+  };
+}
+
 export interface HierarchicalAHPResult {
   criteriaAHP: AHPResult;
   subcriteriaAHPByCriteria: Record<string, AHPResult>;

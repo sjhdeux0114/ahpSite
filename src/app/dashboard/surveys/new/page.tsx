@@ -383,8 +383,12 @@ export default function NewSurveyPage() {
         return sum + (k >= 2 ? (k * (k - 1)) / 2 : 0);
       }, 0)
     : 0;
+  const leafCriteriaCount = criteria.reduce((sum, c) => {
+    const k = hasSubcriteria ? (c.subcriteria || []).length : 0;
+    return sum + (k > 0 ? k : 1);
+  }, 0);
   const altPairPerCrit = hasAlternatives ? (alternatives.length * (alternatives.length - 1)) / 2 : 0;
-  const totalPairwiseQuestions = criteriaPairCount + subcriteriaPairCount + (hasAlternatives ? criteria.length * altPairPerCrit : 0);
+  const totalPairwiseQuestions = criteriaPairCount + subcriteriaPairCount + (hasAlternatives ? leafCriteriaCount * altPairPerCrit : 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1056,7 +1060,7 @@ export default function NewSurveyPage() {
                   <p>• <strong>2단계 (대분류별 세부영역 쌍대비교)</strong>: {subcriteriaPairCount}문항</p>
                 )}
                 {hasAlternatives && (
-                  <p>• <strong>3단계 (대안 평가 쌍대비교)</strong>: {criteria.length}개 기준 × {altPairPerCrit}문항 = {criteria.length * altPairPerCrit}문항</p>
+                  <p>• <strong>3단계 (대안 평가 쌍대비교)</strong>: {leafCriteriaCount}개 최하위 기준 × {altPairPerCrit}문항 = {leafCriteriaCount * altPairPerCrit}문항</p>
                 )}
               </div>
             </div>
