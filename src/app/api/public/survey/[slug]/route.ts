@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, ensureDbSchema } from '@/lib/prisma';
 import { buildMatrix, calculateAHP, getLeafCriteria } from '@/lib/ahp/calculator';
 
 export async function GET(
   request: Request,
   { params }: { params: { slug: string } }
 ) {
+  await ensureDbSchema();
   const survey = await prisma.survey.findUnique({
     where: { slug: params.slug },
     select: {
@@ -47,6 +48,7 @@ export async function POST(
   request: Request,
   { params }: { params: { slug: string } }
 ) {
+  await ensureDbSchema();
   const survey = await prisma.survey.findUnique({
     where: { slug: params.slug },
   });

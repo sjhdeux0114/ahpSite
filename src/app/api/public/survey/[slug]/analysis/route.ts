@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, ensureDbSchema } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import {
   buildMatrix,
@@ -16,6 +16,7 @@ export async function GET(
   request: Request,
   { params }: { params: { slug: string } }
 ) {
+  await ensureDbSchema();
   const user = await getCurrentUser();
 
   const survey = await prisma.survey.findUnique({
