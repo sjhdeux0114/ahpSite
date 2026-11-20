@@ -338,25 +338,61 @@ export default function FormSurveyBuilder({
                         placeholder="선택지1 / 선택지2 / 선택지3"
                         className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs"
                       />
-                      {q.type === 'consent' && (
-                        <div>
-                          <label className="block text-[11px] font-semibold text-rose-700 mb-1">
-                            선택 시 설문 종료할 보기 (정확히 일치하는 텍스트, 쉼표 구분)
-                          </label>
-                          <input
-                            type="text"
-                            value={(q.endOnOptions || []).join(', ')}
-                            onChange={e =>
-                              updateQuestion(q.id, {
-                                endOnOptions: e.target.value
-                                  .split(',')
-                                  .map(s => s.trim())
-                                  .filter(Boolean),
-                              })
-                            }
-                            placeholder="예: 동의하지 않음 (설문 종료)"
-                            className="w-full px-3 py-1.5 rounded-lg border border-rose-200 bg-white text-xs"
-                          />
+                      {(q.type === 'single_choice' || q.type === 'consent') && (q.options || []).length > 0 && (
+                        <div className="pt-2 border-t border-slate-200/70 space-y-1.5">
+                          <span className="text-[11px] font-semibold text-slate-500 block">
+                            선택지별 분기 이동 (선택, 기본은 다음 문항으로 순서대로 이동)
+                          </span>
+                          <div className="grid sm:grid-cols-2 gap-1.5">
+                            {(q.options || []).filter(Boolean).map(opt => {
+                              const currentTarget =
+                                q.branches?.[opt] ||
+                                (q.endOnOptions?.includes(opt) ? '__END__' : '');
+                              return (
+                                <div key={opt} className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
+                                  <span className="text-[11px] text-slate-700 truncate flex-1" title={opt}>
+                                    {opt}
+                                  </span>
+                                  <select
+                                    value={currentTarget}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      const nextBranches = { ...(q.branches || {}) };
+                                      if (!val) {
+                                        delete nextBranches[opt];
+                                      } else {
+                                        nextBranches[opt] = val;
+                                      }
+                                      const nextEndOpts = Object.entries(nextBranches)
+                                        .filter(([, t]) => t === '__END__')
+                                        .map(([k]) => k);
+                                      updateQuestion(q.id, {
+                                        branches: nextBranches,
+                                        endOnOptions: nextEndOpts,
+                                      });
+                                    }}
+                                    className="text-[11px] px-2 py-1 rounded border border-slate-200 bg-slate-50 max-w-[140px]"
+                                  >
+                                    <option value="">다음 문항 (기본)</option>
+                                    <option value="__END__">설문 종료</option>
+                                    {questions
+                                      .filter(tq => tq.id !== q.id)
+                                      .map(tq => {
+                                        const valKey = tq.numberLabel || tq.id;
+                                        const label = tq.numberLabel
+                                          ? `${tq.numberLabel}. ${tq.title.slice(0, 14)}`
+                                          : tq.title.slice(0, 16);
+                                        return (
+                                          <option key={tq.id} value={valKey}>
+                                            → {label}
+                                          </option>
+                                        );
+                                      })}
+                                  </select>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -426,6 +462,36 @@ export default function FormSurveyBuilder({
                       className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs"
                     />
                   )}
+
+                  {/* Question-level nextQuestion jump */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <span className="text-[11px] text-slate-500">이 문항 완료 후 이동:</span>
+                    <select
+                      value={q.nextQuestion || ''}
+                      onChange={e =>
+                        updateQuestion(q.id, {
+                          nextQuestion: e.target.value || undefined,
+                        })
+                      }
+                      className="text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-700"
+                    >
+                      <option value="">다음 문항 (기본 순서)</option>
+                      <option value="__END__">설문 종료</option>
+                      {questions
+                        .filter(tq => tq.id !== q.id)
+                        .map(tq => {
+                          const valKey = tq.numberLabel || tq.id;
+                          const label = tq.numberLabel
+                            ? `${tq.numberLabel}. ${tq.title.slice(0, 18)}`
+                            : tq.title.slice(0, 20);
+                          return (
+                            <option key={tq.id} value={valKey}>
+                              → {label}
+                            </option>
+                          );
+                        })}
+                    </select>
+                  </div>
                 </div>
               ))}
 

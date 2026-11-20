@@ -20,6 +20,8 @@ export interface FormQuestion {
   rows?: string[];
   columns?: string[];
   endOnOptions?: string[];
+  branches?: Record<string, string>; // option text -> target question number/id or '__END__'
+  nextQuestion?: string; // target question number/id or '__END__' after this question
   placeholder?: string;
 }
 

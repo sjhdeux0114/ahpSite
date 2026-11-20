@@ -21,6 +21,19 @@ interface FormSurveyRendererProps {
   };
 }
 
+function resolveTargetQuestionIndex(questions: FormQuestion[], target: string): number {
+  const norm = target.trim();
+  const numTarget = /^\d+$/.test(norm) ? Number(norm) : NaN;
+  return questions.findIndex(q => {
+    if (q.id === norm) return true;
+    if (q.numberLabel && q.numberLabel.trim() === norm) return true;
+    if (!isNaN(numTarget) && q.numberLabel && /^\d+$/.test(q.numberLabel.trim())) {
+      return Number(q.numberLabel.trim()) === numTarget;
+    }
+    return false;
+  });
+}
+
 export default function FormSurveyRenderer({ slug, survey }: FormSurveyRendererProps) {
   const formConfig = survey.formConfig || { sections: [], questions: [] };
   const sections = formConfig.sections || [];
@@ -51,19 +64,96 @@ export default function FormSurveyRenderer({ slug, survey }: FormSurveyRendererP
     } catch {}
   }, [slug, answers, submitted]);
 
-  // Check if any consent question triggered end-of-survey
-  const endedByConsentQuestion = useMemo(() => {
-    for (const q of questions) {
-      if (q.type === 'consent' && q.endOnOptions && q.endOnOptions.length > 0) {
-        const raw = answers[q.id];
-        const val = typeof raw === 'string' ? raw : raw && 'value' in raw ? raw.value : '';
-        if (val && q.endOnOptions.includes(val)) {
-          return q;
+  const isQuestionAnswered = (q: FormQuestion): boolean => {
+    const raw = answers[q.id];
+    if (!raw) return false;
+    if (q.type === 'short_text' || q.type === 'long_text') {
+      return typeof raw === 'string' ? raw.trim().length > 0 : false;
+    }
+    if (q.type === 'matrix_single') {
+      const rows = q.rows || [];
+      if (typeof raw === 'object' && 'rows' in raw) {
+        return rows.every(r => Boolean(raw.rows?.[r]));
+      }
+      return false;
+    }
+    if (q.type === 'multi_choice') {
+      if (typeof raw === 'object' && 'values' in raw) {
+        return raw.values.length > 0;
+      }
+      return false;
+    }
+    // single_choice / consent
+    if (typeof raw === 'object' && 'value' in raw) {
+      return Boolean(raw.value);
+    }
+    return typeof raw === 'string' && raw.length > 0;
+  };
+
+  // Compute visible questions following conditional branching / skip logic
+  const { visibleQuestions, endedEarly, endedByConsent } = useMemo(() => {
+    const result: FormQuestion[] = [];
+    const visited = new Set<number>();
+    let idx = 0;
+    let ended = false;
+    let byConsent = false;
+    let hasUnansweredBranching = false;
+
+    while (idx >= 0 && idx < questions.length) {
+      if (visited.has(idx)) break;
+      visited.add(idx);
+      const q = questions[idx];
+      result.push(q);
+
+      const raw = answers[q.id];
+      const selectedVal = typeof raw === 'string' ? raw : raw && 'value' in raw ? raw.value : '';
+
+      if (q.branches && Object.keys(q.branches).length > 0) {
+        if (selectedVal && q.branches[selectedVal]) {
+          const target = q.branches[selectedVal];
+          if (target === '__END__') {
+            ended = true;
+            byConsent = q.type === 'consent';
+            break;
+          }
+          const targetIdx = resolveTargetQuestionIndex(questions, target);
+          if (targetIdx > idx) {
+            idx = targetIdx;
+            continue;
+          }
+        } else if (!selectedVal) {
+          hasUnansweredBranching = true;
         }
       }
+
+      if (q.endOnOptions && selectedVal && q.endOnOptions.includes(selectedVal)) {
+        ended = true;
+        byConsent = q.type === 'consent';
+        break;
+      }
+
+      if (q.nextQuestion && (!hasUnansweredBranching || isQuestionAnswered(q))) {
+        if (q.nextQuestion === '__END__') {
+          ended = true;
+          break;
+        }
+        const targetIdx = resolveTargetQuestionIndex(questions, q.nextQuestion);
+        if (targetIdx > idx) {
+          idx = targetIdx;
+          continue;
+        }
+      }
+
+      idx++;
     }
-    return null;
+
+    return { visibleQuestions: result, endedEarly: ended, endedByConsent: byConsent };
   }, [questions, answers]);
+
+  const visibleQuestionIds = useMemo(
+    () => new Set(visibleQuestions.map(q => q.id)),
+    [visibleQuestions]
+  );
 
   const setSingleAnswer = (qId: string, value: string, otherText?: string) => {
     setErrorMsg('');
@@ -118,44 +208,12 @@ export default function FormSurveyRenderer({ slug, survey }: FormSurveyRendererP
     });
   };
 
-  const isQuestionAnswered = (q: FormQuestion): boolean => {
-    const raw = answers[q.id];
-    if (!raw) return false;
-    if (q.type === 'short_text' || q.type === 'long_text') {
-      return typeof raw === 'string' ? raw.trim().length > 0 : false;
-    }
-    if (q.type === 'matrix_single') {
-      const rows = q.rows || [];
-      if (typeof raw === 'object' && 'rows' in raw) {
-        return rows.every(r => Boolean(raw.rows?.[r]));
-      }
-      return false;
-    }
-    if (q.type === 'multi_choice') {
-      if (typeof raw === 'object' && 'values' in raw) {
-        return raw.values.length > 0;
-      }
-      return false;
-    }
-    // single_choice / consent
-    if (typeof raw === 'object' && 'value' in raw) {
-      return Boolean(raw.value);
-    }
-    return typeof raw === 'string' && raw.length > 0;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
-    // Validate required questions up to consent end (if triggered)
-    for (const q of questions) {
-      if (endedByConsentQuestion && q.id !== endedByConsentQuestion.id) {
-        // Stop validating questions after consent end
-        const qIdx = questions.findIndex(x => x.id === q.id);
-        const cIdx = questions.findIndex(x => x.id === endedByConsentQuestion.id);
-        if (qIdx > cIdx) break;
-      }
+    // Validate only visible (non-skipped) required questions
+    for (const q of visibleQuestions) {
       if (q.required && !isQuestionAnswered(q)) {
         const label = q.numberLabel ? `${q.numberLabel}. ${q.title}` : q.title;
         setErrorMsg(`필수 문항에 응답해 주세요: ${label}`);
@@ -165,12 +223,20 @@ export default function FormSurveyRenderer({ slug, survey }: FormSurveyRendererP
       }
     }
 
+    // Filter out answers for skipped questions
+    const filteredAnswers: FormAnswerMap = {};
+    for (const q of visibleQuestions) {
+      if (answers[q.id] !== undefined) {
+        filteredAnswers[q.id] = answers[q.id];
+      }
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch(`/api/public/survey/${slug}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({ answers: filteredAnswers }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -181,7 +247,7 @@ export default function FormSurveyRenderer({ slug, survey }: FormSurveyRendererP
       try {
         localStorage.removeItem(`form_survey_draft_${slug}`);
       } catch {}
-      setDeclinedByConsent(Boolean(endedByConsentQuestion));
+      setDeclinedByConsent(endedByConsent);
       setSubmitted(true);
     } catch {
       setErrorMsg('네트워크 오류가 발생했습니다. 다시 시도해 주세요.');
@@ -221,10 +287,6 @@ export default function FormSurveyRenderer({ slug, survey }: FormSurveyRendererP
       </div>
     );
   }
-
-  const consentEndIndex = endedByConsentQuestion
-    ? questions.findIndex(q => q.id === endedByConsentQuestion.id)
-    : -1;
 
   return (
     <div className="min-h-screen bg-slate-100/80 py-8 px-4 sm:px-6">
@@ -267,14 +329,9 @@ export default function FormSurveyRenderer({ slug, survey }: FormSurveyRendererP
 
         {/* Sections & Questions */}
         {sections.map(sec => {
-          const secQuestions = questions.filter(q => {
-            if (q.sectionId !== sec.id) return false;
-            if (consentEndIndex >= 0) {
-              const qIdx = questions.findIndex(x => x.id === q.id);
-              return qIdx <= consentEndIndex;
-            }
-            return true;
-          });
+          const secQuestions = questions.filter(
+            q => q.sectionId === sec.id && visibleQuestionIds.has(q.id)
+          );
 
           if (secQuestions.length === 0) return null;
 
@@ -572,10 +629,12 @@ export default function FormSurveyRenderer({ slug, survey }: FormSurveyRendererP
           );
         })}
 
-        {/* Consent End Notice */}
-        {endedByConsentQuestion && (
+        {/* Early End Notice (consent decline or branch to __END__) */}
+        {endedEarly && (
           <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
-            참여에 동의하지 않으셨으므로 이후 문항은 생략됩니다. 아래 <strong>제출하기</strong> 버튼을 눌러 설문을 종료해 주세요.
+            {endedByConsent
+              ? '참여에 동의하지 않으셨으므로 이후 문항은 생략됩니다. 아래 제출하기 버튼을 눌러 설문을 종료해 주세요.'
+              : '선택하신 응답에 따라 이후 문항이 생략되어 설문이 종료됩니다. 아래 제출하기 버튼을 눌러 완료해 주세요.'}
           </div>
         )}
 

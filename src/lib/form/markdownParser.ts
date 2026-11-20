@@ -22,7 +22,19 @@ const TYPE_KEYWORDS: Array<{ keywords: string[]; type: FormQuestionType }> = [
   { keywords: ['하나', '단일', '라디오', '객관식'], type: 'single_choice' },
 ];
 
-function parseTypeTag(tagContent: string): { type?: FormQuestionType; optional?: boolean } {
+function normalizeJumpTarget(raw: string): string {
+  const cleaned = raw.replace(/문항/g, '').replace(/번$/g, '').trim();
+  if (cleaned === '종료' || cleaned === '설문 종료' || cleaned === '설문종료' || cleaned === '끝' || cleaned.toLowerCase() === 'end') {
+    return '__END__';
+  }
+  return cleaned;
+}
+
+function parseTypeTag(tagContent: string): {
+  type?: FormQuestionType;
+  optional?: boolean;
+  nextQuestion?: string;
+} {
   const tokens = tagContent
     .split(/[,/|·]/)
     .map(t => t.trim())
@@ -30,9 +42,15 @@ function parseTypeTag(tagContent: string): { type?: FormQuestionType; optional?:
 
   let detectedType: FormQuestionType | undefined;
   let optional: boolean | undefined;
+  let nextQuestion: string | undefined;
 
   for (const token of tokens) {
     const lower = token.toLowerCase();
+    const nextMatch = token.match(/^(?:다음|이동)\s*[:：]\s*(.+)$/);
+    if (nextMatch) {
+      nextQuestion = normalizeJumpTarget(nextMatch[1]);
+      continue;
+    }
     if (lower.includes('선택') || lower === '비필수' || lower === 'optional') {
       // Distinguish "하나 선택" vs "선택 답변" / "선택"
       if (lower === '선택' || lower.includes('선택 답변') || lower.includes('선택답변') || lower === '비필수' || lower === 'optional') {
@@ -52,7 +70,7 @@ function parseTypeTag(tagContent: string): { type?: FormQuestionType; optional?:
     }
   }
 
-  return { type: detectedType, optional };
+  return { type: detectedType, optional, nextQuestion };
 }
 
 function splitSlashOrItems(raw: string): string[] {
@@ -192,6 +210,7 @@ export function parseFormMarkdown(markdown: string): ParseFormResult {
 
         const detectedType = parsedFront.type || parsedBack.type;
         const isOptional = parsedFront.optional ?? parsedBack.optional ?? false;
+        const nextQuestion = parsedFront.nextQuestion || parsedBack.nextQuestion;
 
         if (detectedType || isHash3) {
           finalizeQuestion();
@@ -219,6 +238,7 @@ export function parseFormMarkdown(markdown: string): ParseFormResult {
             type: finalType,
             required: !isOptional,
             options: [],
+            nextQuestion,
             placeholder: placeholder || undefined,
           };
           continue;
@@ -243,6 +263,13 @@ export function parseFormMarkdown(markdown: string): ParseFormResult {
       if (rowMatch) {
         currentQuestion.rows = splitSlashOrItems(rowMatch[1]);
         currentQuestion.type = 'matrix_single';
+        continue;
+      }
+
+      // Check 다음: / 이동: (question-level jump after completing this question)
+      const nextLineMatch = cleanLine.match(/^(?:다음|다음문항|이동)\s*[:：]\s*(.+)$/);
+      if (nextLineMatch) {
+        currentQuestion.nextQuestion = normalizeJumpTarget(nextLineMatch[1]);
         continue;
       }
 
@@ -272,13 +299,27 @@ export function parseFormMarkdown(markdown: string): ParseFormResult {
           continue;
         }
 
-        // Check "[종료]" or "(설문 종료)" for consent/branching
+        // Check "[이동: 4번]" / "[종료]" / "(설문 종료)" for branching
+        const jumpMatch = optRaw.match(/\[(?:이동|다음)\s*[:：]\s*([^\]]+)\]/);
         const hasEndTag = /\[종료\]/.test(optRaw) || /\(설문\s*종료\)/.test(optRaw);
-        const cleanOpt = optRaw.replace(/\[종료\]/g, '').trim();
+        const cleanOpt = optRaw
+          .replace(/\[(?:이동|다음)\s*[:：]\s*[^\]]+\]/g, '')
+          .replace(/\[종료\]/g, '')
+          .trim();
         if (cleanOpt) {
           currentQuestion.options = currentQuestion.options || [];
           currentQuestion.options.push(cleanOpt);
-          if (hasEndTag) {
+          if (jumpMatch) {
+            const target = normalizeJumpTarget(jumpMatch[1]);
+            currentQuestion.branches = currentQuestion.branches || {};
+            currentQuestion.branches[cleanOpt] = target;
+            if (target === '__END__') {
+              currentQuestion.endOnOptions = currentQuestion.endOnOptions || [];
+              currentQuestion.endOnOptions.push(cleanOpt);
+            }
+          } else if (hasEndTag) {
+            currentQuestion.branches = currentQuestion.branches || {};
+            currentQuestion.branches[cleanOpt] = '__END__';
             currentQuestion.endOnOptions = currentQuestion.endOnOptions || [];
             currentQuestion.endOnOptions.push(cleanOpt);
           }
