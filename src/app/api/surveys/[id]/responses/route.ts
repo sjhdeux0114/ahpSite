@@ -270,3 +270,40 @@ export async function DELETE(
     return NextResponse.json({ error: '응답 삭제 중 오류가 발생했습니다.' }, { status: 500 });
   }
 }
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
+  }
+
+  const survey = await prisma.survey.findUnique({ where: { id: params.id } });
+  if (!survey || (survey.userId !== user.id && user.role !== 'ADMIN')) {
+    return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+  }
+
+  try {
+    const body = await request.json();
+    const { responseId, isValid } = body;
+    if (!responseId || typeof isValid !== 'boolean') {
+      return NextResponse.json({ error: 'responseId와 isValid가 필요합니다.' }, { status: 400 });
+    }
+
+    const updated = await prisma.response.updateMany({
+      where: { id: responseId, surveyId: params.id },
+      data: { isValid },
+    });
+
+    if (updated.count === 0) {
+      return NextResponse.json({ error: '응답을 찾을 수 없습니다.' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, isValid });
+  } catch (err) {
+    console.error('Update response error:', err);
+    return NextResponse.json({ error: '응답 상태 변경 중 오류가 발생했습니다.' }, { status: 500 });
+  }
+}

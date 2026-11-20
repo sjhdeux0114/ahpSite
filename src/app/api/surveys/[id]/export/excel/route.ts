@@ -45,6 +45,7 @@ export async function GET(
         id: r.id,
         name: r.respondentName || '익명 응답자',
         email: r.respondentEmail || '',
+        isValid: r.isValid,
         createdAt: r.createdAt,
         answers,
       };

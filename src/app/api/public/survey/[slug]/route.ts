@@ -30,6 +30,28 @@ export async function GET(
     return NextResponse.json({ error: '설문을 찾을 수 없습니다.' }, { status: 404 });
   }
 
+  const parsedFormConfig = JSON.parse((survey as any).formConfig || '{}');
+  const settings = parsedFormConfig?.settings || {};
+  const responseCount = await prisma.response.count({ where: { surveyId: survey.id } });
+
+  const now = new Date();
+  const isBeforeStart = settings.startAt ? now < new Date(settings.startAt) : false;
+  const isExpired = settings.endAt ? now > new Date(settings.endAt) : false;
+  const isFull =
+    typeof settings.maxResponses === 'number' && settings.maxResponses > 0
+      ? responseCount >= settings.maxResponses
+      : false;
+  const requiresAccessCode = Boolean(settings.accessCode && String(settings.accessCode).trim());
+
+  // Never expose accessCode in public GET response
+  const safeFormConfig = {
+    ...parsedFormConfig,
+    settings: {
+      ...settings,
+      accessCode: undefined,
+    },
+  };
+
   return NextResponse.json({
     survey: {
       ...survey,
@@ -37,8 +59,18 @@ export async function GET(
       criteria: JSON.parse(survey.criteria || '[]'),
       alternatives: JSON.parse(survey.alternatives || '[]'),
       demographics: JSON.parse(survey.demographics || '[]'),
-      formConfig: JSON.parse((survey as any).formConfig || '{}'),
+      formConfig: safeFormConfig,
       consistencyThreshold: survey.consistencyThreshold ?? 0.1,
+      availability: {
+        isBeforeStart,
+        isExpired,
+        isFull,
+        requiresAccessCode,
+        responseCount,
+        startAt: settings.startAt || null,
+        endAt: settings.endAt || null,
+        maxResponses: settings.maxResponses || null,
+      },
     },
   });
 }
@@ -70,6 +102,37 @@ export async function POST(
     const isForm = ((survey as any).surveyType || 'AHP') === 'FORM';
 
     if (isForm) {
+      const parsedFormConfig = JSON.parse((survey as any).formConfig || '{}');
+      const settings = parsedFormConfig?.settings || {};
+      const expectedCode = settings.accessCode ? String(settings.accessCode).trim() : '';
+
+      // Access code verification action
+      if (body.action === 'verify_code') {
+        const provided = String(body.accessCode || '').trim();
+        if (!expectedCode || provided === expectedCode) {
+          return NextResponse.json({ valid: true });
+        }
+        return NextResponse.json({ valid: false, error: '참여 코드가 올바르지 않습니다.' }, { status: 403 });
+      }
+
+      // Check schedule & maxResponses
+      const now = new Date();
+      if (settings.startAt && now < new Date(settings.startAt)) {
+        return NextResponse.json({ error: '아직 설문 참여 기간이 시작되지 않았습니다.' }, { status: 400 });
+      }
+      if (settings.endAt && now > new Date(settings.endAt)) {
+        return NextResponse.json({ error: '설문 참여 기간이 종료되었습니다.' }, { status: 400 });
+      }
+      if (typeof settings.maxResponses === 'number' && settings.maxResponses > 0) {
+        const count = await prisma.response.count({ where: { surveyId: survey.id } });
+        if (count >= settings.maxResponses) {
+          return NextResponse.json({ error: '최대 응답 인원에 도달하여 설문이 마감되었습니다.' }, { status: 400 });
+        }
+      }
+      if (expectedCode && String(body.accessCode || '').trim() !== expectedCode) {
+        return NextResponse.json({ error: '올바른 참여 코드가 필요합니다.' }, { status: 403 });
+      }
+
       const formAnswers = body.answers || {};
       const response = await prisma.response.create({
         data: {

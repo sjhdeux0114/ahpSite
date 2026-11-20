@@ -69,6 +69,7 @@ export default function PublicSurveyAnalysisPage() {
         <FormAnalysisView
           survey={data.survey}
           formAnalysis={data.formAnalysis}
+          responses={data.responses || []}
           isOwner={Boolean(data?.isOwner)}
           backHref={data?.isOwner ? '/dashboard' : '/'}
         />

@@ -15,7 +15,14 @@ export interface ParseFormResult {
 
 const TYPE_KEYWORDS: Array<{ keywords: string[]; type: FormQuestionType }> = [
   { keywords: ['동의', '참여동의'], type: 'consent' },
+  { keywords: ['그리드복수', '표복수', '행렬복수'], type: 'matrix_multi' },
   { keywords: ['그리드', '표', '행렬', '각각 하나', '각각하나'], type: 'matrix_single' },
+  { keywords: ['선형', '척도', '리커트', '배율'], type: 'linear_scale' },
+  { keywords: ['드롭다운', '목록'], type: 'dropdown' },
+  { keywords: ['순위', '랭킹'], type: 'ranking' },
+  { keywords: ['숫자'], type: 'number' },
+  { keywords: ['날짜'], type: 'date' },
+  { keywords: ['시간'], type: 'time' },
   { keywords: ['복수', '다중', '체크박스', '여러개'], type: 'multi_choice' },
   { keywords: ['단답'], type: 'short_text' },
   { keywords: ['장문', '서술', '서술형', '주관식'], type: 'long_text' },
@@ -34,6 +41,7 @@ function parseTypeTag(tagContent: string): {
   type?: FormQuestionType;
   optional?: boolean;
   nextQuestion?: string;
+  randomizeOptions?: boolean;
 } {
   const tokens = tagContent
     .split(/[,/|·]/)
@@ -43,12 +51,17 @@ function parseTypeTag(tagContent: string): {
   let detectedType: FormQuestionType | undefined;
   let optional: boolean | undefined;
   let nextQuestion: string | undefined;
+  let randomizeOptions: boolean | undefined;
 
   for (const token of tokens) {
     const lower = token.toLowerCase();
     const nextMatch = token.match(/^(?:다음|이동)\s*[:：]\s*(.+)$/);
     if (nextMatch) {
       nextQuestion = normalizeJumpTarget(nextMatch[1]);
+      continue;
+    }
+    if (lower === '무작위' || lower === '랜덤' || lower === 'random') {
+      randomizeOptions = true;
       continue;
     }
     if (lower.includes('선택') || lower === '비필수' || lower === 'optional') {
@@ -70,7 +83,7 @@ function parseTypeTag(tagContent: string): {
     }
   }
 
-  return { type: detectedType, optional, nextQuestion };
+  return { type: detectedType, optional, nextQuestion, randomizeOptions };
 }
 
 function splitSlashOrItems(raw: string): string[] {
@@ -116,7 +129,7 @@ export function parseFormMarkdown(markdown: string): ParseFormResult {
   const finalizeQuestion = () => {
     if (!currentQuestion) return;
     // Default type inference if not explicitly specified
-    if (currentQuestion.rows && currentQuestion.rows.length > 0) {
+    if (currentQuestion.rows && currentQuestion.rows.length > 0 && currentQuestion.type !== 'matrix_multi') {
       currentQuestion.type = 'matrix_single';
     } else if (
       currentQuestion.type === 'short_text' &&
@@ -124,6 +137,10 @@ export function parseFormMarkdown(markdown: string): ParseFormResult {
       currentQuestion.options.length > 0
     ) {
       currentQuestion.type = 'single_choice';
+    }
+    if (currentQuestion.type === 'linear_scale') {
+      if (currentQuestion.scaleMin === undefined) currentQuestion.scaleMin = 1;
+      if (currentQuestion.scaleMax === undefined) currentQuestion.scaleMax = 5;
     }
     questions.push(currentQuestion);
     currentQuestion = null;
@@ -211,6 +228,7 @@ export function parseFormMarkdown(markdown: string): ParseFormResult {
         const detectedType = parsedFront.type || parsedBack.type;
         const isOptional = parsedFront.optional ?? parsedBack.optional ?? false;
         const nextQuestion = parsedFront.nextQuestion || parsedBack.nextQuestion;
+        const randomizeOptions = parsedFront.randomizeOptions || parsedBack.randomizeOptions;
 
         if (detectedType || isHash3) {
           finalizeQuestion();
@@ -222,7 +240,7 @@ export function parseFormMarkdown(markdown: string): ParseFormResult {
           let placeholder = '';
           const finalType: FormQuestionType = detectedType || 'single_choice';
 
-          if (finalType === 'short_text' || finalType === 'long_text') {
+          if (finalType === 'short_text' || finalType === 'long_text' || finalType === 'number') {
             const parenMatch = qTitle.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
             if (parenMatch) {
               qTitle = parenMatch[1].trim();
@@ -238,6 +256,7 @@ export function parseFormMarkdown(markdown: string): ParseFormResult {
             type: finalType,
             required: !isOptional,
             options: [],
+            randomizeOptions: randomizeOptions || undefined,
             nextQuestion,
             placeholder: placeholder || undefined,
           };
@@ -254,7 +273,9 @@ export function parseFormMarkdown(markdown: string): ParseFormResult {
       const colMatch = cleanLine.match(/^(?:열|컬럼|보기)\s*[:：]\s*(.+)$/);
       if (colMatch) {
         currentQuestion.columns = splitSlashOrItems(colMatch[1]);
-        currentQuestion.type = 'matrix_single';
+        if (currentQuestion.type !== 'matrix_multi') {
+          currentQuestion.type = 'matrix_single';
+        }
         continue;
       }
 
@@ -262,7 +283,53 @@ export function parseFormMarkdown(markdown: string): ParseFormResult {
       const rowMatch = cleanLine.match(/^(?:행|항목)\s*[:：]\s*(.+)$/);
       if (rowMatch) {
         currentQuestion.rows = splitSlashOrItems(rowMatch[1]);
-        currentQuestion.type = 'matrix_single';
+        if (currentQuestion.type !== 'matrix_multi') {
+          currentQuestion.type = 'matrix_single';
+        }
+        continue;
+      }
+
+      // Check 범위: 1~5 or 1-7 (for linear_scale)
+      const rangeMatch = cleanLine.match(/^범위\s*[:：]\s*(\d+)\s*[~\-]\s*(\d+)$/);
+      if (rangeMatch) {
+        currentQuestion.scaleMin = Number(rangeMatch[1]);
+        currentQuestion.scaleMax = Number(rangeMatch[2]);
+        continue;
+      }
+
+      // Check 라벨: 왼쪽 / 오른쪽 (for linear_scale)
+      const labelMatch = cleanLine.match(/^라벨\s*[:：]\s*(.+)$/);
+      if (labelMatch) {
+        const parts = splitSlashOrItems(labelMatch[1]);
+        if (parts[0]) currentQuestion.scaleMinLabel = parts[0];
+        if (parts[1]) currentQuestion.scaleMaxLabel = parts[1];
+        continue;
+      }
+
+      // Check 단위: (for number)
+      const unitMatch = cleanLine.match(/^단위\s*[:：]\s*(.+)$/);
+      if (unitMatch) {
+        currentQuestion.unit = unitMatch[1].trim();
+        continue;
+      }
+
+      // Check 최소: / 최대: (multi_choice or number)
+      const minMatch = cleanLine.match(/^최소\s*[:：]\s*(\d+)$/);
+      if (minMatch) {
+        if (currentQuestion.type === 'number') {
+          currentQuestion.minNumber = Number(minMatch[1]);
+        } else {
+          currentQuestion.minSelect = Number(minMatch[1]);
+        }
+        continue;
+      }
+      const maxMatch = cleanLine.match(/^최대\s*[:：]\s*(\d+)$/);
+      if (maxMatch) {
+        if (currentQuestion.type === 'number') {
+          currentQuestion.maxNumber = Number(maxMatch[1]);
+        } else {
+          currentQuestion.maxSelect = Number(maxMatch[1]);
+        }
         continue;
       }
 

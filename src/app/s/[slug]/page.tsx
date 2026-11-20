@@ -55,6 +55,16 @@ interface SurveyData {
   demographics?: DemographicQuestion[];
   formConfig?: any;
   consistencyThreshold?: number;
+  availability?: {
+    isBeforeStart?: boolean;
+    isExpired?: boolean;
+    isFull?: boolean;
+    requiresAccessCode?: boolean;
+    responseCount?: number;
+    startAt?: string | null;
+    endAt?: string | null;
+    maxResponses?: number | null;
+  };
 }
 
 export type StepType = 'intro' | 'criteria' | 'subcriteria' | 'alternatives' | 'review';
@@ -883,6 +893,7 @@ export default function PublicSurveyPage() {
           description: survey.description,
           status: survey.status,
           formConfig: survey.formConfig || { sections: [], questions: [] },
+          availability: survey.availability,
         }}
       />
     );

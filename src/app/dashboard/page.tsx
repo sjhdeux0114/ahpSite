@@ -21,7 +21,9 @@ import {
   AlertCircle,
   ShieldCheck,
   Pencil,
+  QrCode,
 } from 'lucide-react';
+import QrCodeModal from '@/components/common/QrCodeModal';
 
 interface SurveyItem {
   id: string;
@@ -45,6 +47,7 @@ export default function DashboardPage() {
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [copiedShareSlug, setCopiedShareSlug] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [qrSurvey, setQrSurvey] = useState<{ title: string; url: string } | null>(null);
 
   const fetchSurveys = async () => {
     try {
@@ -337,6 +340,21 @@ export default function DashboardPage() {
                       )}
                     </button>
 
+                    {/* QR Code Modal Trigger */}
+                    <button
+                      onClick={() =>
+                        setQrSurvey({
+                          title: survey.title,
+                          url: `${window.location.origin}/s/${survey.slug}`,
+                        })
+                      }
+                      title="설문 QR 코드 보기 및 다운로드"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>QR</span>
+                    </button>
+
                     {/* Result Analysis Share Link Copy */}
                     <button
                       onClick={() => handleCopyShareLink(survey.slug)}
@@ -424,6 +442,12 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+      <QrCodeModal
+        isOpen={Boolean(qrSurvey)}
+        onClose={() => setQrSurvey(null)}
+        title={qrSurvey?.title || ''}
+        url={qrSurvey?.url || ''}
+      />
     </>
   );
 }

@@ -69,6 +69,7 @@ export default function SurveyAnalysisPage() {
         <FormAnalysisView
           survey={data.survey}
           formAnalysis={data.formAnalysis}
+          responses={data.responses || []}
           isOwner={true}
           backHref="/dashboard"
         />
